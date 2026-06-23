@@ -1,0 +1,107 @@
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using ClubPay.Agent.Core;
+using ClubPay.Agent.Core.Models;
+using ClubPay.Agent.Client.Services;
+
+namespace ClubPay.Agent.Client.ViewModels;
+
+public partial class ActiveSessionViewModel : ObservableObject
+{
+    private readonly QrCodeService _qr;
+    private readonly DispatcherTimer _timer;
+    private Session? _session;
+
+    public event Action? FreezeRequested;
+
+    [ObservableProperty] private string _remainingTimeText = "01:24:35";
+    [ObservableProperty] private int _remainingSeconds = 5075;
+    [ObservableProperty] private string _zoneLabel = "Standard Zone";
+    [ObservableProperty] private string _zoneLabelUz = "Standart Zona";
+    [ObservableProperty] private string _tariffLabel = "2 soat";
+    [ObservableProperty] private string _playedHoursText = "2 soat";
+    [ObservableProperty] private BitmapImage? _extendQrImage;
+
+    // Warning mini-cards — bound in ActiveSessionView
+    [ObservableProperty] private bool _isWarn10Visible;
+    [ObservableProperty] private bool _isWarn1Visible;
+
+    public ActiveSessionViewModel(QrCodeService qr)
+    {
+        _qr = qr;
+        _timer = new DispatcherTimer(DispatcherPriority.Normal)
+        { Interval = TimeSpan.FromSeconds(1) };
+        _timer.Tick += OnTick;
+    }
+
+    public void Load(Session session)
+    {
+        _session = session;
+
+        ZoneLabel = ZoneLabelFor(session.Tariff.Zone, false);
+        ZoneLabelUz = ZoneLabelFor(session.Tariff.Zone, true);
+        TariffLabel = session.Tariff.DurationLabel;
+
+        var extendUrl = $"https://pay.clubpay.uz/?session={session.Id:N}";
+        ExtendQrImage = _qr.Generate(extendUrl, 116);
+
+        RefreshTime(DateTime.UtcNow);
+        _timer.Start();
+    }
+
+    public void Extend(int additionalSeconds)
+    {
+        if (_session is null) return;
+        _session = _session with { GrantedSeconds = _session.GrantedSeconds + additionalSeconds };
+        RefreshTime(DateTime.UtcNow);
+    }
+
+    public void Stop() => _timer.Stop();
+
+    private void OnTick(object? _, EventArgs __)
+    {
+        var now = DateTime.UtcNow;
+        RefreshTime(now);
+
+        if (_session?.IsExpired(now) == true)
+        {
+            _timer.Stop();
+            FreezeRequested?.Invoke();
+        }
+    }
+
+    private void RefreshTime(DateTime now)
+    {
+        if (_session is null) return;
+
+        int rem = _session.RemainingSeconds(now);
+        RemainingSeconds = rem;
+        RemainingTimeText = FormatTime(rem);
+
+        int played = _session.ElapsedSeconds(now) / 3600;
+        PlayedHoursText = played > 0 ? $"{played} soat" : "yangi sessiya";
+
+        IsWarn10Visible = rem is > 0 and <= Constants.Timer.WarnAt10Min;
+        IsWarn1Visible = rem is > 0 and <= Constants.Timer.WarnAt1Min;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        int h = totalSeconds / 3600;
+        int m = (totalSeconds % 3600) / 60;
+        int s = totalSeconds % 60;
+        return h > 0 ? $"{h:D2}:{m:D2}:{s:D2}" : $"{m:D2}:{s:D2}";
+    }
+
+    private static string ZoneLabelFor(ZoneType zone, bool uz) => (zone, uz) switch
+    {
+        (ZoneType.Pro, false) => "Pro Zone",
+        (ZoneType.Pro, true) => "Pro Zona",
+        (ZoneType.Vip, false) => "VIP Zone",
+        (ZoneType.Vip, true) => "VIP Zona",
+        (_, false) => "Standard Zone",
+        _ => "Standart Zona",
+    };
+}

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ClubPay.Agent.Admin/ClubPay.Agent.Admin.csproj" />
+    <Project Path="src/ClubPay.Agent.Client/ClubPay.Agent.Client.csproj" />
+    <Project Path="src/ClubPay.Agent.Core/ClubPay.Agent.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ClubPay.Agent.Core.Tests/ClubPay.Agent.Core.Tests.csproj" />
+  </Folder>
+</Solution>
