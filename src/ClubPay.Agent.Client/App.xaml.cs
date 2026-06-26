@@ -1,6 +1,7 @@
 using System.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Core.Services;
 using ClubPay.Agent.Client.Services;
@@ -12,6 +13,7 @@ namespace ClubPay.Agent.Client;
 public partial class App : Application
 {
     private ServiceProvider? _services;
+    private CancellationTokenSource? _startupCts;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -37,9 +39,11 @@ public partial class App : Application
         sc.AddSingleton<IAgentService,       AgentService>();
         sc.AddSingleton<IVoucherService,     StubVoucherService>();
         sc.AddSingleton<IKioskLockService,      KioskLockService>();
-        sc.AddSingleton<IControllerListener,    ControllerListenerService>();
-        sc.AddSingleton<IProcessCleanupService, ProcessCleanupService>();
+        sc.AddSingleton<IControllerListener,       ControllerListenerService>();
+        sc.AddSingleton<IProcessCleanupService,    ProcessCleanupService>();
+        sc.AddSingleton<IStartupSessionChecker,    StartupSessionCheckerService>();
         sc.AddSingleton<QrCodeService>();
+        sc.AddLogging(b => b.AddDebug());
 
         sc.AddSingleton<LockScreenViewModel>();
         sc.AddSingleton<ActiveSessionViewModel>();
@@ -52,17 +56,22 @@ public partial class App : Application
         sc.AddSingleton<GameLauncherWindow>();
 
         _services = sc.BuildServiceProvider();
+        _startupCts = new CancellationTokenSource();
 
         _services.GetRequiredService<IKioskLockService>().Install();
-        await _services.GetRequiredService<IControllerListener>().StartAsync();
+        await _services.GetRequiredService<IControllerListener>().StartAsync(_startupCts.Token);
 
         _ = _services.GetRequiredService<SessionOverlayWindow>();
         _ = _services.GetRequiredService<GameLauncherWindow>();  // creates Instance
         _services.GetRequiredService<KioskWindow>().Show();
+
+        // Locked ekran ko'rsatilgandan keyin pending sessiya tekshiriladi
+        _ = _services.GetRequiredService<MainViewModel>().InitializeAsync(_startupCts.Token);
     }
 
     protected override async void OnExit(ExitEventArgs e)
     {
+        _startupCts?.Cancel();
         if (_services is not null)
         {
             // Kill any running game before exit

@@ -41,5 +41,7 @@ public static class Constants
     {
         public const int Port = 7474;
         public const string SecretHeader = "X-Agent-Secret";
+        public const string PendingSessionPath = "/api/agents/{0}/pending-session";  // {0} = pcId
+        public const int StartupCheckMaxRetries = 3;
     }
 }

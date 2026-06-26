@@ -22,12 +22,13 @@ public partial class MainViewModel : ObservableObject
     public ActiveSessionViewModel ActiveSession { get; }
     public FreezeViewModel        Freeze        { get; }
 
-    private readonly IAgentService          _agentService;
-    private readonly IControllerListener    _listener;
-    private readonly IKioskLockService      _kioskLock;
-    private readonly IProcessCleanupService _processCleanup;
-    private readonly GameLauncherViewModel  _launcher;
-    private DispatcherTimer?                _idleTimer;
+    private readonly IAgentService            _agentService;
+    private readonly IControllerListener      _listener;
+    private readonly IKioskLockService        _kioskLock;
+    private readonly IProcessCleanupService   _processCleanup;
+    private readonly GameLauncherViewModel    _launcher;
+    private readonly IStartupSessionChecker  _startupChecker;
+    private DispatcherTimer?                  _idleTimer;
 
     public MainViewModel(
         LockScreenViewModel    lockScreen,
@@ -37,16 +38,18 @@ public partial class MainViewModel : ObservableObject
         IControllerListener    listener,
         IKioskLockService      kioskLock,
         IProcessCleanupService processCleanup,
-        GameLauncherViewModel  launcher)
+        GameLauncherViewModel  launcher,
+        IStartupSessionChecker startupChecker)
     {
-        LockScreen      = lockScreen;
-        ActiveSession   = activeSession;
-        Freeze          = freeze;
-        _agentService   = agentService;
-        _listener       = listener;
-        _kioskLock      = kioskLock;
-        _processCleanup = processCleanup;
-        _launcher       = launcher;
+        LockScreen       = lockScreen;
+        ActiveSession    = activeSession;
+        Freeze           = freeze;
+        _agentService    = agentService;
+        _listener        = listener;
+        _kioskLock       = kioskLock;
+        _processCleanup  = processCleanup;
+        _launcher        = launcher;
+        _startupChecker  = startupChecker;
 
         LockScreen.SessionRequested    += OnSessionStarted;
         ActiveSession.FreezeRequested  += OnFreezeStarted;
@@ -57,8 +60,23 @@ public partial class MainViewModel : ObservableObject
         _listener.SessionEndReceived   += OnSessionExpired;
     }
 
+    public async Task InitializeAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var cmd = await _startupChecker.CheckAsync(ct);
+            if (cmd is null)
+                return;
+            OnControllerSessionStart(cmd);
+        }
+        catch (OperationCanceledException) { }
+    }
+
     private void OnControllerSessionStart(SessionStartCommand cmd)
     {
+        if (State != AgentState.Locked)
+            return;
+
         System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
         {
             var tariff  = new Tariff(cmd.SessionId, cmd.TariffName,
