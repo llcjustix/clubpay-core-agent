@@ -14,13 +14,13 @@
 
   <Grid>
     <!-- Lock Screen (shown when Locked) -->
-    <views:LockScreenView
-        DataContext="{Binding LockScreen}"
-        Visibility="{Binding IsLocked, Converter={StaticResource BoolVis}}"/>
+    <Grid Visibility="{Binding IsLocked, Converter={StaticResource BoolVis}}">
+      <views:LockScreenView DataContext="{Binding LockScreen}"/>
+    </Grid>
 
     <!-- Freeze Overlay (shown when Frozen) -->
-    <views:FreezeView
-        DataContext="{Binding Freeze}"
-        Visibility="{Binding IsFrozen, Converter={StaticResource BoolVis}}"/>
+    <Grid Visibility="{Binding IsFrozen, Converter={StaticResource BoolVis}}">
+      <views:FreezeView DataContext="{Binding Freeze}"/>
+    </Grid>
   </Grid>
 </Window>

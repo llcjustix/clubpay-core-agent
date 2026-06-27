@@ -8,6 +8,7 @@ public interface IAgentService
     ZoneType Zone { get; }
     string ClubName { get; }
     string WifiSsid { get; }
+    string WifiPassword { get; }
 
     Task<bool> StartSessionAsync(Session session, CancellationToken ct = default);
     Task EndSessionAsync(CancellationToken ct = default);

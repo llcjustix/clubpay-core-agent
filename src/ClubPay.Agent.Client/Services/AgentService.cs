@@ -10,6 +10,7 @@ public sealed class AgentService : IAgentService
     public ZoneType Zone { get; }
     public string ClubName { get; }
     public string WifiSsid { get; }
+    public string WifiPassword { get; }
 
     private readonly ISessionStore _store;
 
@@ -19,6 +20,7 @@ public sealed class AgentService : IAgentService
         PcId = config["Agent:PcId"] ?? "PC-01";
         ClubName = config["Agent:ClubName"] ?? "NEXUS ARENA";
         WifiSsid = config["Agent:WifiSsid"] ?? "ClubPay-Guest";
+        WifiPassword = config["Agent:WifiPassword"] ?? string.Empty;
         Zone = Enum.TryParse<ZoneType>(config["Agent:Zone"], out var z) ? z : ZoneType.Standard;
     }
 

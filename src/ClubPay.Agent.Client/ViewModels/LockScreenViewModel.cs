@@ -63,7 +63,7 @@ public partial class LockScreenViewModel : ObservableObject
     {
         var payUrl = $"https://pay.clubpay.uz/?pc={Uri.EscapeDataString(PcId)}";
         PayQrImage = _qr.Generate(payUrl, 300);
-        WifiQrImage = _qr.GenerateWifi(_agent.WifiSsid, pixelSize: 108);
+        WifiQrImage = _qr.GenerateWifi(_agent.WifiSsid, _agent.WifiPassword, pixelSize: 108);
     }
 
     public void Reset()
