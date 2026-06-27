@@ -10,7 +10,7 @@
   </UserControl.Resources>
 
   <!-- Card bound to PcCard DataContext -->
-  <Border CornerRadius="14" BorderThickness="1" Padding="16,16,16,14"
+  <Border CornerRadius="14" BorderThickness="1" Padding="12,12,12,10"
           MouseLeftButtonUp="OnCardClick">
     <Border.Background>
       <SolidColorBrush Color="{Binding Status, Converter={StaticResource StatusBrush}}"
@@ -32,7 +32,7 @@
       <!-- PC ID + Zone -->
       <Grid Grid.Row="0">
         <TextBlock Text="{Binding PcId}" Foreground="White"
-                   FontFamily="{StaticResource FontChakra}" FontSize="30" FontWeight="Bold"/>
+                   FontFamily="{StaticResource FontChakra}" FontSize="24" FontWeight="Bold"/>
         <Border HorizontalAlignment="Right" VerticalAlignment="Top"
                 CornerRadius="999" Padding="10,4">
           <Border.Background>
@@ -53,7 +53,7 @@
       </Grid>
 
       <!-- Status + Time -->
-      <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
+      <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,6,0,0">
         <Ellipse Width="11" Height="11" VerticalAlignment="Center" Margin="0,0,9,0">
           <Ellipse.Fill>
             <SolidColorBrush Color="{Binding Status, Converter={StaticResource StatusBrush}}"/>
@@ -64,7 +64,7 @@
           </Ellipse.Effect>
         </Ellipse>
         <TextBlock Text="{Binding StatusText}" FontFamily="{StaticResource FontChakra}"
-                   FontSize="21" FontWeight="SemiBold">
+                   FontSize="17" FontWeight="SemiBold">
           <TextBlock.Foreground>
             <SolidColorBrush Color="{Binding Status, Converter={StaticResource StatusBrush}}"/>
           </TextBlock.Foreground>
@@ -72,28 +72,28 @@
       </StackPanel>
 
       <!-- Action buttons row -->
-      <Grid Grid.Row="3" Margin="0,16,0,0">
+      <Grid Grid.Row="3" Margin="0,12,0,0">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="8"/>
+          <ColumnDefinition Width="6"/>
           <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="8"/>
+          <ColumnDefinition Width="6"/>
           <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <Border Grid.Column="0" Style="{StaticResource MiniBtn}">
           <TextBlock Text="Wake" HorizontalAlignment="Center" VerticalAlignment="Center"
-                     FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium"
-                     Foreground="{StaticResource TextSecondary}" Padding="0,9"/>
+                     FontFamily="{StaticResource FontChakra}" FontSize="12" FontWeight="Medium"
+                     Foreground="{StaticResource TextSecondary}" Padding="0,7"/>
         </Border>
         <Border Grid.Column="2" Style="{StaticResource MiniBtn}">
           <TextBlock Text="Sleep" HorizontalAlignment="Center" VerticalAlignment="Center"
-                     FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium"
-                     Foreground="{StaticResource TextSecondary}" Padding="0,9"/>
+                     FontFamily="{StaticResource FontChakra}" FontSize="12" FontWeight="Medium"
+                     Foreground="{StaticResource TextSecondary}" Padding="0,7"/>
         </Border>
         <Border Grid.Column="4" Style="{StaticResource MiniBtn}">
           <TextBlock Text="End" HorizontalAlignment="Center" VerticalAlignment="Center"
-                     FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium"
-                     Foreground="{StaticResource TextSecondary}" Padding="0,9"/>
+                     FontFamily="{StaticResource FontChakra}" FontSize="12" FontWeight="Medium"
+                     Foreground="{StaticResource TextSecondary}" Padding="0,7"/>
         </Border>
       </Grid>
     </Grid>

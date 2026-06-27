@@ -36,7 +36,7 @@
     </Rectangle>
 
     <!-- MAIN LAYOUT -->
-    <Grid Margin="48,40,48,44">
+    <Grid Margin="24,20,24,22">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto"/>
         <RowDefinition Height="Auto"/>
@@ -70,7 +70,7 @@
 
         <!-- Controller status (center) -->
         <Border Grid.Column="1" CornerRadius="999" BorderThickness="1"
-                Padding="20,10" VerticalAlignment="Center"
+                Padding="16,8" VerticalAlignment="Center"
                 Background="#14FFFFFF" BorderBrush="#2200FF88">
           <StackPanel Orientation="Horizontal">
             <Ellipse Width="10" Height="10" Fill="{StaticResource GreenBrush}" Margin="0,0,10,0"
@@ -80,7 +80,7 @@
               </Ellipse.Effect>
             </Ellipse>
             <TextBlock Foreground="#FFBDF5D8" FontFamily="{StaticResource FontMono}"
-                       FontSize="17">
+                       FontSize="14">
               <Run Text="Kontroller: "/>
               <Run Text="{Binding ControllerStatus, Mode=OneWay}"/>
             </TextBlock>
@@ -91,12 +91,12 @@
         <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right"
                     VerticalAlignment="Center">
           <TextBlock Text="{Binding CurrentTime}" Foreground="{StaticResource TextSecondary}"
-                     FontFamily="{StaticResource FontMono}" FontSize="24" FontWeight="Medium"
+                     FontFamily="{StaticResource FontMono}" FontSize="20" FontWeight="Medium"
                      VerticalAlignment="Center" Margin="0,0,18,0"/>
           <Border CornerRadius="999" Padding="7,7,18,7" VerticalAlignment="Center"
                   Background="#0DFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1">
             <StackPanel Orientation="Horizontal">
-              <Border Width="34" Height="34" CornerRadius="17" Margin="0,0,11,0">
+              <Border Width="30" Height="30" CornerRadius="15" Margin="0,0,8,0">
                 <Border.Background>
                   <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                     <GradientStop Color="#FF00D4FF" Offset="0"/>
@@ -106,10 +106,10 @@
                 <TextBlock Text="{Binding AdminName, Converter={x:Static cv:FirstCharConverter.Instance}}"
                            HorizontalAlignment="Center" VerticalAlignment="Center"
                            Foreground="#04222B" FontFamily="{StaticResource FontChakra}"
-                           FontSize="17" FontWeight="Bold"/>
+                           FontSize="14" FontWeight="Bold"/>
               </Border>
               <TextBlock Text="{Binding AdminName}" Foreground="White"
-                         FontFamily="{StaticResource FontChakra}" FontSize="18" FontWeight="SemiBold"
+                         FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="SemiBold"
                          VerticalAlignment="Center"/>
             </StackPanel>
           </Border>
@@ -117,7 +117,7 @@
       </Grid>
 
       <!-- SUMMARY + ZONE TABS -->
-      <Grid Grid.Row="1" Margin="0,26,0,22">
+      <Grid Grid.Row="1" Margin="0,18,0,14">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
@@ -125,37 +125,37 @@
 
         <!-- Status pills -->
         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-          <StackPanel Orientation="Horizontal" Margin="0,0,22,0">
+          <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
             <Ellipse Width="10" Height="10" Fill="{StaticResource GreenBrush}" VerticalAlignment="Center" Margin="0,0,8,0">
               <Ellipse.Effect><DropShadowEffect Color="#FF00FF88" BlurRadius="8" ShadowDepth="0"/></Ellipse.Effect>
             </Ellipse>
             <TextBlock Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="19" FontWeight="Medium">
+                       FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium">
               <Run Text="{Binding ActiveCount, Mode=OneWay}"/><Run Text=" " Foreground="{StaticResource TextMuted}"/><Run Text="aktiv" Foreground="{StaticResource TextMuted}" FontWeight="Normal"/>
             </TextBlock>
           </StackPanel>
-          <StackPanel Orientation="Horizontal" Margin="0,0,22,0">
+          <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
             <Ellipse Width="10" Height="10" Fill="{StaticResource RedBrush}" VerticalAlignment="Center" Margin="0,0,8,0">
               <Ellipse.Effect><DropShadowEffect Color="#FFFF3B5C" BlurRadius="8" ShadowDepth="0"/></Ellipse.Effect>
             </Ellipse>
             <TextBlock Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="19" FontWeight="Medium">
+                       FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium">
               <Run Text="{Binding FrozenCount, Mode=OneWay}"/><Run Text=" muzlatilgan" Foreground="{StaticResource TextMuted}" FontWeight="Normal"/>
             </TextBlock>
           </StackPanel>
-          <StackPanel Orientation="Horizontal" Margin="0,0,22,0">
+          <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
             <Ellipse Width="10" Height="10" Fill="{StaticResource CyanBrush}" VerticalAlignment="Center" Margin="0,0,8,0">
               <Ellipse.Effect><DropShadowEffect Color="#FF00D4FF" BlurRadius="8" ShadowDepth="0"/></Ellipse.Effect>
             </Ellipse>
             <TextBlock Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="19" FontWeight="Medium">
+                       FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium">
               <Run Text="{Binding FreeCount, Mode=OneWay}"/><Run Text=" bo'sh" Foreground="{StaticResource TextMuted}" FontWeight="Normal"/>
             </TextBlock>
           </StackPanel>
-          <StackPanel Orientation="Horizontal" Margin="0,0,22,0">
+          <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
             <Ellipse Width="10" Height="10" Fill="{StaticResource TextDimmed}" VerticalAlignment="Center" Margin="0,0,8,0"/>
             <TextBlock Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="19" FontWeight="Medium">
+                       FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium">
               <Run Text="{Binding SleepCount, Mode=OneWay}"/><Run Text=" uxlayapti" Foreground="{StaticResource TextMuted}" FontWeight="Normal"/>
             </TextBlock>
           </StackPanel>
@@ -164,7 +164,7 @@
               <Ellipse.Effect><DropShadowEffect Color="#FFFFD60A" BlurRadius="8" ShadowDepth="0"/></Ellipse.Effect>
             </Ellipse>
             <TextBlock Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="19" FontWeight="Medium">
+                       FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium">
               <Run Text="{Binding AttentionCount, Mode=OneWay}"/><Run Text=" diqqat" Foreground="{StaticResource TextMuted}" FontWeight="Normal"/>
             </TextBlock>
           </StackPanel>
@@ -175,21 +175,21 @@
           <Border Style="{StaticResource ZoneTabActive}" Margin="0,0,10,0"
                   MouseLeftButtonUp="OnZoneFilter" Tag="Hammasi">
             <TextBlock Text="Hammasi" Foreground="#04222B"
-                       FontFamily="{StaticResource FontChakra}" FontSize="16" FontWeight="SemiBold"/>
+                       FontFamily="{StaticResource FontChakra}" FontSize="14" FontWeight="SemiBold"/>
           </Border>
           <Border Style="{StaticResource ZoneTab}" Margin="0,0,10,0"
                   MouseLeftButtonUp="OnZoneFilter" Tag="Standart">
             <TextBlock Text="Standart" Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="16" FontWeight="Medium"/>
+                       FontFamily="{StaticResource FontChakra}" FontSize="14" FontWeight="Medium"/>
           </Border>
           <Border Style="{StaticResource ZoneTab}" Margin="0,0,10,0"
                   MouseLeftButtonUp="OnZoneFilter" Tag="Pro">
             <TextBlock Text="Pro" Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="16" FontWeight="Medium"/>
+                       FontFamily="{StaticResource FontChakra}" FontSize="14" FontWeight="Medium"/>
           </Border>
           <Border Style="{StaticResource ZoneTab}" MouseLeftButtonUp="OnZoneFilter" Tag="VIP">
             <TextBlock Text="VIP" Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="16" FontWeight="Medium"/>
+                       FontFamily="{StaticResource FontChakra}" FontSize="14" FontWeight="Medium"/>
           </Border>
         </StackPanel>
       </Grid>
@@ -205,11 +205,12 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate>
-              <controls:PcCardControl DataContext="{Binding}" Margin="9"
+              <controls:PcCardControl DataContext="{Binding}" Margin="7"
                                       PcSelected="OnPcSelected"/>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+
 
         <!-- Dimming scrim when panel open -->
         <Grid Background="#80000000"

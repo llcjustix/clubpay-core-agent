@@ -10,7 +10,8 @@
     <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
   </UserControl.Resources>
 
-  <Grid>
+  <Viewbox Stretch="Uniform">
+  <Grid Width="1920" Height="1080">
     <!-- Grid line overlay -->
     <Rectangle Opacity="0.018">
       <Rectangle.Fill>
@@ -241,4 +242,5 @@
       </Border>
     </Grid>
   </Grid>
+  </Viewbox>
 </UserControl>

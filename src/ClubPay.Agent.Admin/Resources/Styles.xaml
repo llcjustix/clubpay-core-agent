@@ -46,7 +46,7 @@
     <Setter Property="Background"      Value="#0DFFFFFF"/>
     <Setter Property="BorderBrush"     Value="#1AFFFFFF"/>
     <Setter Property="BorderThickness" Value="1"/>
-    <Setter Property="Padding"         Value="24,9"/>
+    <Setter Property="Padding"         Value="18,7"/>
     <Setter Property="Cursor"          Value="Hand"/>
   </Style>
   <Style x:Key="ZoneTabActive" TargetType="Border" BasedOn="{StaticResource ZoneTab}">
@@ -68,7 +68,7 @@
   <Style x:Key="InfoTile" TargetType="Border">
     <Setter Property="CornerRadius" Value="12"/>
     <Setter Property="Background"   Value="#07FFFFFF"/>
-    <Setter Property="Padding"      Value="14,16"/>
+    <Setter Property="Padding"      Value="10,12"/>
   </Style>
 
 </ResourceDictionary>

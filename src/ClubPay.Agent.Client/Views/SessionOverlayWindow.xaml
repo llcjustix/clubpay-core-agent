@@ -4,7 +4,7 @@
         xmlns:views="clr-namespace:ClubPay.Agent.Client.Views"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ResizeMode="NoResize" ShowInTaskbar="False"
-        Width="452" SizeToContent="Height">
+        Width="380" SizeToContent="Height">
 
   <StackPanel>
     <views:ActiveSessionView DataContext="{Binding ActiveSession}"/>

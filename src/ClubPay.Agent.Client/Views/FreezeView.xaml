@@ -10,7 +10,8 @@
     <cv:GraceToWidthConverter     x:Key="GraceWidth" TotalWidth="520"/>
   </UserControl.Resources>
 
-  <Grid>
+  <Viewbox Stretch="Uniform">
+  <Grid Width="1920" Height="1080">
     <!-- Background gradient -->
     <Rectangle>
       <Rectangle.Fill>
@@ -230,4 +231,5 @@
       </Grid>
     </Grid>
   </Grid>
+  </Viewbox>
 </UserControl>
