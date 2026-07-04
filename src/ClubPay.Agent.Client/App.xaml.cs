@@ -40,6 +40,8 @@ public partial class App : Application
         sc.AddSingleton<IVoucherService,     StubVoucherService>();
         sc.AddSingleton<IKioskLockService,      KioskLockService>();
         sc.AddSingleton<IControllerListener,       ControllerListenerService>();
+        sc.AddSingleton<ICoreApiListener,          CoreApiListenerService>();
+        sc.AddSingleton<IBillingEventReporter,     BillingEventReporterService>();
         sc.AddSingleton<IProcessCleanupService,    ProcessCleanupService>();
         sc.AddSingleton<IStartupSessionChecker,    StartupSessionCheckerService>();
         sc.AddSingleton<QrCodeService>();
@@ -60,6 +62,7 @@ public partial class App : Application
 
         _services.GetRequiredService<IKioskLockService>().Install();
         await _services.GetRequiredService<IControllerListener>().StartAsync(_startupCts.Token);
+        await _services.GetRequiredService<ICoreApiListener>().StartAsync(_startupCts.Token);
 
         _ = _services.GetRequiredService<SessionOverlayWindow>();
         _ = _services.GetRequiredService<GameLauncherWindow>();  // creates Instance
@@ -77,6 +80,7 @@ public partial class App : Application
             // Kill any running game before exit
             _services.GetRequiredService<GameLauncherViewModel>().KillRunningApp();
             await _services.GetRequiredService<IControllerListener>().StopAsync();
+            await _services.GetRequiredService<ICoreApiListener>().StopAsync();
             _services.GetRequiredService<IKioskLockService>().Uninstall();
             _services.Dispose();
         }

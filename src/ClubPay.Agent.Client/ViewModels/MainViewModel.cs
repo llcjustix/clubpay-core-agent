@@ -24,11 +24,14 @@ public partial class MainViewModel : ObservableObject
 
     private readonly IAgentService            _agentService;
     private readonly IControllerListener      _listener;
+    private readonly ICoreApiListener         _coreListener;
+    private readonly IBillingEventReporter    _billingReporter;
     private readonly IKioskLockService        _kioskLock;
     private readonly IProcessCleanupService   _processCleanup;
     private readonly GameLauncherViewModel    _launcher;
     private readonly IStartupSessionChecker  _startupChecker;
     private DispatcherTimer?                  _idleTimer;
+    private Session?                          _activeSession;
 
     public MainViewModel(
         LockScreenViewModel    lockScreen,
@@ -36,6 +39,8 @@ public partial class MainViewModel : ObservableObject
         FreezeViewModel        freeze,
         IAgentService          agentService,
         IControllerListener    listener,
+        ICoreApiListener       coreListener,
+        IBillingEventReporter  billingReporter,
         IKioskLockService      kioskLock,
         IProcessCleanupService processCleanup,
         GameLauncherViewModel  launcher,
@@ -46,6 +51,8 @@ public partial class MainViewModel : ObservableObject
         Freeze           = freeze;
         _agentService    = agentService;
         _listener        = listener;
+        _coreListener    = coreListener;
+        _billingReporter = billingReporter;
         _kioskLock       = kioskLock;
         _processCleanup  = processCleanup;
         _launcher        = launcher;
@@ -58,6 +65,10 @@ public partial class MainViewModel : ObservableObject
 
         _listener.SessionStartReceived += OnControllerSessionStart;
         _listener.SessionEndReceived   += OnSessionExpired;
+
+        _coreListener.SessionStartReceived  += OnCoreSessionStart;
+        _coreListener.SessionExtendReceived += OnCoreSessionExtend;
+        _coreListener.SessionEndReceived    += OnCoreSessionEnd;
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -88,9 +99,47 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
+    private void OnCoreSessionStart(CoreSessionStartCommand cmd)
+    {
+        if (State != AgentState.Locked)
+        {
+            _ = _billingReporter.ReportCommandFailedAsync("sessions/start", "pc is not locked");
+            return;
+        }
+
+        System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
+        {
+            var sessionId = cmd.CoreSessionId ?? Guid.NewGuid();
+            var tariff  = new Tariff(sessionId, cmd.TariffName ?? "Billing",
+                _agentService.Zone, cmd.GrantedSeconds / 60, cmd.PriceTiyin ?? 0);
+            var session = new Session(sessionId, _agentService.PcId,
+                tariff, DateTime.UtcNow, cmd.GrantedSeconds, cmd.CoreSessionId ?? sessionId);
+            await _agentService.StartSessionAsync(session);
+            OnSessionStarted(session);
+        });
+    }
+
+    private void OnCoreSessionExtend(CoreSessionExtendCommand cmd)
+    {
+        if (State == AgentState.Locked)
+        {
+            _ = _billingReporter.ReportCommandFailedAsync("sessions/extend", "pc is locked");
+            return;
+        }
+
+        System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
+        {
+            await _agentService.ExtendSessionAsync(cmd.AdditionalSeconds);
+            OnSessionResumed(cmd.AdditionalSeconds);
+        });
+    }
+
+    private void OnCoreSessionEnd(CoreSessionEndCommand cmd) => OnSessionExpired();
+
     private void OnSessionStarted(Session session)
     {
         _idleTimer?.Stop();
+        _activeSession = session;
 
         // Snapshot running processes — anything started after this point
         // will be cleaned up when the session ends
@@ -101,6 +150,9 @@ public partial class MainViewModel : ObservableObject
 
         ActiveSession.Load(session);
         State = AgentState.Active;
+
+        _ = _billingReporter.ReportSessionStartedAsync(session.Id);
+        _ = _billingReporter.ReportPcStatusChangedAsync("Active");
     }
 
     private void OnFreezeStarted()
@@ -109,6 +161,8 @@ public partial class MainViewModel : ObservableObject
         _kioskLock.SetMode(KioskLockMode.Full);
         Freeze.StartGrace();
         State = AgentState.Frozen;
+
+        _ = _billingReporter.ReportPcStatusChangedAsync("Frozen");
     }
 
     private void OnSessionResumed(int additionalSeconds)
@@ -117,6 +171,8 @@ public partial class MainViewModel : ObservableObject
         _kioskLock.SetMode(KioskLockMode.Session);
         ActiveSession.Extend(additionalSeconds);
         State = AgentState.Active;
+
+        _ = _billingReporter.ReportPcStatusChangedAsync("Active");
     }
 
     private void OnSessionExpired()
@@ -129,6 +185,13 @@ public partial class MainViewModel : ObservableObject
         LockScreen.Reset();
         State = AgentState.Locked;
         StartIdleTimer();
+
+        if (_activeSession is { } session)
+        {
+            _ = _billingReporter.ReportSessionEndedAsync(session.Id, null);
+            _activeSession = null;
+        }
+        _ = _billingReporter.ReportPcStatusChangedAsync("Locked");
     }
 
     private void StartIdleTimer()

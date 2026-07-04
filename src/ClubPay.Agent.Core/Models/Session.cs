@@ -5,7 +5,8 @@ public record Session(
     string PcId,
     Tariff Tariff,
     DateTime StartedAtUtc,
-    int GrantedSeconds
+    int GrantedSeconds,
+    Guid? CoreSessionId = null
 )
 {
     public int ElapsedSeconds(DateTime nowUtc) => (int)(nowUtc - StartedAtUtc).TotalSeconds;

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Core.Services;
 
@@ -7,6 +8,7 @@ namespace ClubPay.Agent.Client.Services;
 public sealed class AgentService : IAgentService
 {
     public string PcId { get; }
+    public string ExternalPcId { get; }
     public ZoneType Zone { get; }
     public string ClubName { get; }
     public string WifiSsid { get; }
@@ -14,7 +16,7 @@ public sealed class AgentService : IAgentService
 
     private readonly ISessionStore _store;
 
-    public AgentService(ISessionStore store, IConfiguration config)
+    public AgentService(ISessionStore store, IConfiguration config, ILogger<AgentService> logger)
     {
         _store = store;
         PcId = config["Agent:PcId"] ?? "PC-01";
@@ -22,6 +24,14 @@ public sealed class AgentService : IAgentService
         WifiSsid = config["Agent:WifiSsid"] ?? "ClubPay-Guest";
         WifiPassword = config["Agent:WifiPassword"] ?? string.Empty;
         Zone = Enum.TryParse<ZoneType>(config["Agent:Zone"], out var z) ? z : ZoneType.Standard;
+
+        var externalPcId = config["Billing:ExternalPcId"];
+        if (string.IsNullOrWhiteSpace(externalPcId))
+        {
+            logger.LogWarning("Billing:ExternalPcId is not configured — falling back to lowercased PcId");
+            externalPcId = PcId.ToLowerInvariant();
+        }
+        ExternalPcId = externalPcId;
     }
 
     public Task<bool> StartSessionAsync(Session session, CancellationToken ct = default)

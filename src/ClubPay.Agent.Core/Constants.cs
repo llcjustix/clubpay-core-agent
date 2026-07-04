@@ -44,4 +44,20 @@ public static class Constants
         public const string PendingSessionPath = "/api/agents/{0}/pending-session";  // {0} = pcId
         public const int StartupCheckMaxRetries = 3;
     }
+
+    public static class Billing
+    {
+        public const int ListenerPort = 7475;
+        public const string EventsPath = "/api/core/events";
+        public const int EventReportMaxRetries = 3;
+
+        public static class EventType
+        {
+            public const string PcStatusChanged = "pc_status_changed";
+            public const string SessionStarted = "session_started";
+            public const string SessionEnded = "session_ended";
+            public const string SessionFailed = "session_failed";
+            public const string CommandFailed = "command_failed";
+        }
+    }
 }

@@ -5,6 +5,7 @@ namespace ClubPay.Agent.Core.Services;
 public interface IAgentService
 {
     string PcId { get; }
+    string ExternalPcId { get; }
     ZoneType Zone { get; }
     string ClubName { get; }
     string WifiSsid { get; }
