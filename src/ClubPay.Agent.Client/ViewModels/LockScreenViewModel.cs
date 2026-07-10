@@ -1,22 +1,22 @@
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Core.Services;
 using ClubPay.Agent.Client.Services;
 
 namespace ClubPay.Agent.Client.ViewModels;
 
+/// <summary>
+/// Purely passive: shows PC/club/zone info, a clock and a QR code that links to the payment page.
+/// Everything else (starting a session) happens only via a Controller start_session command through
+/// ISessionCoordinator — this view has no local decision-making of its own.
+/// </summary>
 public partial class LockScreenViewModel : ObservableObject
 {
     private readonly IAgentService _agent;
     private readonly QrCodeService _qr;
-    private readonly IVoucherService _voucher;
     private readonly DispatcherTimer _clock;
-
-    public event Action<Session>? SessionRequested;
 
     [ObservableProperty] private string _pcId = "PC-12";
     [ObservableProperty] private string _zoneLabel = "Standard Zone · Standart Zona";
@@ -26,26 +26,10 @@ public partial class LockScreenViewModel : ObservableObject
     [ObservableProperty] private BitmapImage? _payQrImage;
     [ObservableProperty] private BitmapImage? _wifiQrImage;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasCode))]
-    private bool _isCodeInputVisible;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasCode))]
-    private string _codeInput = string.Empty;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasCodeError))]
-    private string? _codeError;
-
-    public bool HasCode => CodeInput.Length > 0;
-    public bool HasCodeError => !string.IsNullOrEmpty(CodeError);
-
-    public LockScreenViewModel(IAgentService agent, QrCodeService qr, IVoucherService voucher)
+    public LockScreenViewModel(IAgentService agent, QrCodeService qr)
     {
         _agent = agent;
         _qr = qr;
-        _voucher = voucher;
 
         PcId = agent.PcId;
         ClubName = agent.ClubName;
@@ -66,65 +50,8 @@ public partial class LockScreenViewModel : ObservableObject
         WifiQrImage = _qr.GenerateWifi(_agent.WifiSsid, _agent.WifiPassword, pixelSize: 108);
     }
 
-    public void Reset()
-    {
-        IsCodeInputVisible = false;
-        CodeInput = string.Empty;
-        CodeError = null;
-        GenerateQrCodes();
-    }
-
-    [RelayCommand]
-    public void ToggleCodeInput()
-    {
-        IsCodeInputVisible = !IsCodeInputVisible;
-        if (!IsCodeInputVisible)
-        {
-            CodeInput = string.Empty;
-            CodeError = null;
-        }
-    }
-
-    [RelayCommand]
-    public void AppendKey(string key)
-    {
-        if (!IsCodeInputVisible) { IsCodeInputVisible = true; }
-        if (key == "\b")
-        {
-            if (CodeInput.Length > 0)
-                CodeInput = CodeInput[..^1];
-        }
-        else if (CodeInput.Length < 9)
-        {
-            CodeInput += key.ToUpper();
-        }
-        CodeError = null;
-    }
-
-    [RelayCommand]
-    public async Task SubmitCodeAsync()
-    {
-        if (string.IsNullOrWhiteSpace(CodeInput)) return;
-
-        var rawCode = CodeInput.Replace("-", "");
-        var token = _voucher.Redeem(rawCode, PcId);
-
-        if (token is null || !_voucher.Validate(token, PcId, DateTime.UtcNow))
-        {
-            CodeError = "Kod noto'g'ri yoki muddati o'tgan";
-            CodeInput = string.Empty;
-            return;
-        }
-
-        var tariff = new Tariff(Guid.NewGuid(), "Voucher", ClubPay.Agent.Core.Models.ZoneType.Standard,
-                                 token.RemainingSeconds / 60, 0);
-        var session = new Session(Guid.NewGuid(), PcId, tariff, DateTime.UtcNow, token.RemainingSeconds);
-
-        await _agent.StartSessionAsync(session);
-        IsCodeInputVisible = false;
-        CodeInput = string.Empty;
-        SessionRequested?.Invoke(session);
-    }
+    /// <summary>Called by MainViewModel whenever the coordinator reports a fresh transition to Locked.</summary>
+    public void Reset() => GenerateQrCodes();
 
     private static string ZoneLabelFor(ZoneType z) => z switch
     {

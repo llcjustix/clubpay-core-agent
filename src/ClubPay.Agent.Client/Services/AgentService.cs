@@ -14,55 +14,49 @@ public sealed class AgentService : IAgentService
     public string WifiSsid { get; }
     public string WifiPassword { get; }
 
-    private readonly ISessionStore _store;
-
-    public AgentService(ISessionStore store, IConfiguration config, ILogger<AgentService> logger)
+    public AgentService(IConfiguration config, ILogger<AgentService> logger)
     {
-        _store = store;
         PcId = config["Agent:PcId"] ?? "PC-01";
         ClubName = config["Agent:ClubName"] ?? "NEXUS ARENA";
         WifiSsid = config["Agent:WifiSsid"] ?? "ClubPay-Guest";
         WifiPassword = config["Agent:WifiPassword"] ?? string.Empty;
         Zone = Enum.TryParse<ZoneType>(config["Agent:Zone"], out var z) ? z : ZoneType.Standard;
 
-        var externalPcId = config["Billing:ExternalPcId"];
+        var externalPcId = config["Controller:ExternalPcId"];
         if (string.IsNullOrWhiteSpace(externalPcId))
         {
-            logger.LogWarning("Billing:ExternalPcId is not configured — falling back to lowercased PcId");
+            logger.LogWarning("Controller:ExternalPcId is not configured — falling back to lowercased PcId");
             externalPcId = PcId.ToLowerInvariant();
         }
         ExternalPcId = externalPcId;
     }
 
-    public Task<bool> StartSessionAsync(Session session, CancellationToken ct = default)
-    {
-        _store.Save(session);
-        return Task.FromResult(true);
-    }
-
-    public Task EndSessionAsync(CancellationToken ct = default)
-    {
-        _store.Clear();
-        return Task.CompletedTask;
-    }
-
-    public Task ExtendSessionAsync(int additionalSeconds, CancellationToken ct = default)
-    {
-        if (_store.Current is { } s)
-            _store.Save(s with { GrantedSeconds = s.GrantedSeconds + additionalSeconds });
-        return Task.CompletedTask;
-    }
-
     public Task SleepAsync(CancellationToken ct = default)
     {
-        // Trigger S3 sleep via Win32 SetSuspendState
         NativeMethods.SetSuspendState(false, false, false);
         return Task.CompletedTask;
+    }
+
+    public void KeepAwake(bool keepAwake)
+    {
+        NativeMethods.SetThreadExecutionState(keepAwake
+            ? NativeMethods.ExecutionState.Continuous | NativeMethods.ExecutionState.SystemRequired
+            : NativeMethods.ExecutionState.Continuous);
     }
 }
 
 internal static class NativeMethods
 {
+    [Flags]
+    internal enum ExecutionState : uint
+    {
+        Continuous = 0x80000000,
+        SystemRequired = 0x00000001,
+    }
+
     [System.Runtime.InteropServices.DllImport("powrprof.dll", SetLastError = true)]
     internal static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    internal static extern ExecutionState SetThreadExecutionState(ExecutionState esFlags);
 }

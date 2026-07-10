@@ -1,39 +1,25 @@
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using ClubPay.Agent.Core;
 using ClubPay.Agent.Client.Services;
 
 namespace ClubPay.Agent.Client.ViewModels;
 
+/// <summary>
+/// Purely passive grace-period display: shows the countdown and a session-bound payment QR.
+/// ISessionCoordinator alone decides when grace starts and expires — this view only renders
+/// <see cref="ShowGrace"/>'s deadline; resuming happens only via a Controller extend_session command.
+/// </summary>
 public partial class FreezeViewModel : ObservableObject
 {
     private readonly QrCodeService _qr;
     private readonly DispatcherTimer _timer;
-    private int _totalGraceSeconds = Constants.Timer.GracePeriod;
-
-    public event Action<int>? ResumeRequested;
-    public event Action? ExpiredRequested;
+    private DateTime _untilUtc;
 
     [ObservableProperty] private string _graceTimeText = "10:00";
     [ObservableProperty] private int _graceRemainingSeconds = Constants.Timer.GracePeriod;
     [ObservableProperty] private double _graceBarWidth = 520;
-
-    [ObservableProperty] private string _upsellLine1 = "You've played — continue at a discount";
-    [ObservableProperty] private string _upsellLine1Uz = "Chegirma bilan davom eting";
-    [ObservableProperty] private long _discountTiyin = 1_300_000;  // 13 000 so'm
-    [ObservableProperty] private long _originalTiyin = 1_500_000;  // 15 000 so'm
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasVoucherError))]
-    private string _voucherInput = string.Empty;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasVoucherError))]
-    private string? _voucherError;
-
-    public bool HasVoucherError => !string.IsNullOrEmpty(VoucherError);
 
     [ObservableProperty] private BitmapImage? _extendQrImage;
 
@@ -42,66 +28,35 @@ public partial class FreezeViewModel : ObservableObject
         _qr = qr;
         _timer = new DispatcherTimer(DispatcherPriority.Normal)
         { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += OnTick;
+        _timer.Tick += (_, _) => Refresh();
     }
 
-    public void StartGrace(int playedHours = 2)
+    /// <summary>untilUtc is the grace deadline the coordinator computed; sessionIdHex (if any) makes the
+    /// QR session-bound so a photographed/replayed code can't be reused on another PC/session.</summary>
+    public void ShowGrace(DateTime untilUtc, string? sessionIdHex = null)
     {
-        _totalGraceSeconds = Constants.Timer.GracePeriod;
-        GraceRemainingSeconds = _totalGraceSeconds;
-        GraceTimeText = FormatTime(_totalGraceSeconds);
-        GraceBarWidth = 520;
-        VoucherInput = string.Empty;
-        VoucherError = null;
+        _untilUtc = untilUtc;
 
-        UpsellLine1 = $"You've played {playedHours} hour{(playedHours != 1 ? "s" : "")} — continue at a discount";
-        UpsellLine1Uz = $"Siz {playedHours} soat o'ynadingiz — chegirma bilan davom eting";
-
-        var extendUrl = "https://pay.clubpay.uz/?extend=1";
+        var extendUrl = string.IsNullOrEmpty(sessionIdHex)
+            ? "https://pay.clubpay.uz/"
+            : $"https://pay.clubpay.uz/?session={sessionIdHex}";
         ExtendQrImage = _qr.Generate(extendUrl, 320);
 
+        Refresh();
         _timer.Start();
     }
 
-    private void OnTick(object? _, EventArgs __)
-    {
-        GraceRemainingSeconds = Math.Max(0, GraceRemainingSeconds - 1);
-        GraceTimeText = FormatTime(GraceRemainingSeconds);
-        GraceBarWidth = 520.0 * GraceRemainingSeconds / _totalGraceSeconds;
+    public void Stop() => _timer.Stop();
 
-        if (GraceRemainingSeconds == 0)
-        {
+    private void Refresh()
+    {
+        int remaining = (int)Math.Max(0, (_untilUtc - DateTime.UtcNow).TotalSeconds);
+        GraceRemainingSeconds = remaining;
+        GraceTimeText = FormatTime(remaining);
+        GraceBarWidth = 520.0 * remaining / Constants.Timer.GracePeriod;
+
+        if (remaining == 0)
             _timer.Stop();
-            ExpiredRequested?.Invoke();
-        }
-    }
-
-    [RelayCommand]
-    public void AppendVoucher(string key)
-    {
-        if (key == "\b")
-        {
-            if (VoucherInput.Length > 0)
-                VoucherInput = VoucherInput[..^1];
-        }
-        else if (VoucherInput.Length < 9)
-        {
-            VoucherInput += key.ToUpper();
-        }
-        VoucherError = null;
-    }
-
-    [RelayCommand]
-    public void SubmitVoucher()
-    {
-        if (string.IsNullOrWhiteSpace(VoucherInput))
-        {
-            VoucherError = "Kodni kiriting";
-            return;
-        }
-        // Real validation via IVoucherService — wired in real agent
-        _timer.Stop();
-        ResumeRequested?.Invoke(3600);  // demo: 1 hr extension
     }
 
     private static string FormatTime(int secs)

@@ -2,7 +2,6 @@ using System.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Core.Services;
 using ClubPay.Agent.Client.Services;
 using ClubPay.Agent.Client.ViewModels;
@@ -35,15 +34,23 @@ public partial class App : Application
         var sc = new ServiceCollection();
 
         sc.AddSingleton<IConfiguration>(config);
-        sc.AddSingleton<ISessionStore,       SessionStore>();
-        sc.AddSingleton<IAgentService,       AgentService>();
-        sc.AddSingleton<IVoucherService,     StubVoucherService>();
-        sc.AddSingleton<IKioskLockService,      KioskLockService>();
-        sc.AddSingleton<IControllerListener,       ControllerListenerService>();
-        sc.AddSingleton<ICoreApiListener,          CoreApiListenerService>();
-        sc.AddSingleton<IBillingEventReporter,     BillingEventReporterService>();
-        sc.AddSingleton<IProcessCleanupService,    ProcessCleanupService>();
-        sc.AddSingleton<IStartupSessionChecker,    StartupSessionCheckerService>();
+
+        // AgentStateRepository backs three interfaces from one file — register the concrete type once
+        // and forward all three to the same instance (three separate AddSingleton<T,TImpl> calls would
+        // otherwise create three different instances writing to the same file independently).
+        sc.AddSingleton<AgentStateRepository>();
+        sc.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<AgentStateRepository>());
+        sc.AddSingleton<IGrantIdempotencyStore>(sp => sp.GetRequiredService<AgentStateRepository>());
+        sc.AddSingleton<IControllerOutbox>(sp => sp.GetRequiredService<AgentStateRepository>());
+
+        sc.AddSingleton<IAgentService, AgentService>();
+        sc.AddSingleton<IKioskLockService, KioskLockService>();
+        sc.AddSingleton<IProcessCleanupService, ProcessCleanupService>();
+        sc.AddSingleton<IIdleDetectionService, IdleDetectionService>();
+        sc.AddSingleton<ISystemClock, SystemClock>();
+        sc.AddSingleton<ISessionCoordinator, SessionCoordinatorService>();
+        sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();
+        sc.AddSingleton<IControllerChannel, ControllerChannelService>();
         sc.AddSingleton<QrCodeService>();
         sc.AddLogging(b => b.AddDebug());
 
@@ -61,14 +68,16 @@ public partial class App : Application
         _startupCts = new CancellationTokenSource();
 
         _services.GetRequiredService<IKioskLockService>().Install();
-        await _services.GetRequiredService<IControllerListener>().StartAsync(_startupCts.Token);
-        await _services.GetRequiredService<ICoreApiListener>().StartAsync(_startupCts.Token);
+
+        // Recover persisted session state (survives a crash/restart) before anything else touches it.
+        await _services.GetRequiredService<AgentStateRepository>().LoadAsync(_startupCts.Token);
+        await _services.GetRequiredService<ISessionCoordinator>().StartAsync(_startupCts.Token);
+        await _services.GetRequiredService<IControllerChannel>().StartAsync(_startupCts.Token);
 
         _ = _services.GetRequiredService<SessionOverlayWindow>();
         _ = _services.GetRequiredService<GameLauncherWindow>();  // creates Instance
         _services.GetRequiredService<KioskWindow>().Show();
 
-        // Locked ekran ko'rsatilgandan keyin pending sessiya tekshiriladi
         _ = _services.GetRequiredService<MainViewModel>().InitializeAsync(_startupCts.Token);
     }
 
@@ -79,8 +88,8 @@ public partial class App : Application
         {
             // Kill any running game before exit
             _services.GetRequiredService<GameLauncherViewModel>().KillRunningApp();
-            await _services.GetRequiredService<IControllerListener>().StopAsync();
-            await _services.GetRequiredService<ICoreApiListener>().StopAsync();
+            await _services.GetRequiredService<IControllerChannel>().StopAsync();
+            await _services.GetRequiredService<ISessionCoordinator>().DisposeAsync();
             _services.GetRequiredService<IKioskLockService>().Uninstall();
             _services.Dispose();
         }
@@ -91,11 +100,11 @@ public partial class App : Application
 
     private static bool HandleInstallerArgs(string[] args)
     {
-        bool isInstall   = args.Contains("--install");
+        bool isInstall = args.Contains("--install");
         bool isUninstall = args.Contains("--uninstall");
-        bool isStatus    = args.Contains("--status");
-        var  loginArg    = Array.Find(args, a => a.StartsWith("--autologin="));
-        var  noLoginArg  = args.Contains("--disable-autologin");
+        bool isStatus = args.Contains("--status");
+        var loginArg = Array.Find(args, a => a.StartsWith("--autologin="));
+        var noLoginArg = args.Contains("--disable-autologin");
 
         if (!isInstall && !isUninstall && !isStatus && loginArg is null && !noLoginArg)
             return false;
@@ -151,10 +160,10 @@ public partial class App : Application
         if (loginArg is not null)
         {
             // Format: --autologin=username:password  (password may be empty)
-            var val   = loginArg["--autologin=".Length..];
+            var val = loginArg["--autologin=".Length..];
             var colon = val.IndexOf(':');
-            var user  = colon >= 0 ? val[..colon]       : val;
-            var pass  = colon >= 0 ? val[(colon + 1)..] : "";
+            var user = colon >= 0 ? val[..colon] : val;
+            var pass = colon >= 0 ? val[(colon + 1)..] : "";
             InstallService.SetupAutoLogin(user, pass);
             MessageBox.Show(
                 $"Auto-login sozlandi: {user}\n" +
@@ -171,11 +180,4 @@ public partial class App : Application
 
         return true;
     }
-}
-
-// Stub voucher service — replace with Ed25519 implementation
-file sealed class StubVoucherService : IVoucherService
-{
-    public VoucherToken? Redeem(string code, string pcId) => null;
-    public bool Validate(VoucherToken token, string pcId, DateTime nowUtc) => false;
 }

@@ -3,8 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:ClubPay.Agent.Client.ViewModels"
              xmlns:cv="clr-namespace:ClubPay.Agent.Client.Converters"
-             Background="{StaticResource BgGradient}"
-             KeyDown="OnKeyDown" Focusable="True">
+             Background="{StaticResource BgGradient}">
 
   <UserControl.Resources>
     <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
@@ -150,10 +149,10 @@
       </StackPanel>
     </StackPanel>
 
-    <!-- PRESS ANY KEY (bottom-center) -->
+    <!-- STATUS HINT (bottom-center) -->
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
                 VerticalAlignment="Bottom" Margin="0,0,0,44">
-      <TextBlock Text="Press any key to enter unlock code · Kodni kiritish uchun istalgan tugmani bosing"
+      <TextBlock Text="Waiting for controller · Kontrollerdan buyruq kutilmoqda"
                  Foreground="{StaticResource TextDimmed}"
                  FontFamily="{StaticResource FontMono}" FontSize="19"
                  VerticalAlignment="Center"/>
@@ -171,76 +170,6 @@
         </Rectangle.Triggers>
       </Rectangle>
     </StackPanel>
-
-    <!-- CODE INPUT OVERLAY -->
-    <Grid Visibility="{Binding IsCodeInputVisible, Converter={StaticResource BoolVis}}"
-          Background="#CC0D1117">
-      <Border CornerRadius="22" Padding="48,40" HorizontalAlignment="Center"
-              VerticalAlignment="Center" Width="620">
-        <Border.Background>
-          <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="#FF1A1A2E" Offset="0"/>
-            <GradientStop Color="#FF0D1117" Offset="1"/>
-          </LinearGradientBrush>
-        </Border.Background>
-        <Border.BorderBrush>
-          <SolidColorBrush Color="#FF00D4FF" Opacity="0.3"/>
-        </Border.BorderBrush>
-        <Border.BorderThickness>1</Border.BorderThickness>
-        <Border.Effect>
-          <DropShadowEffect Color="#FF00D4FF" BlurRadius="60" ShadowDepth="0" Opacity="0.08"/>
-        </Border.Effect>
-        <StackPanel>
-          <TextBlock Text="Kodni kiriting · Enter unlock code"
-                     HorizontalAlignment="Center"
-                     Foreground="{StaticResource TextSecondary}"
-                     FontFamily="{StaticResource FontChakra}" FontSize="22"
-                     FontWeight="Medium" Margin="0,0,0,20"/>
-
-          <!-- Code field -->
-          <Border CornerRadius="16" Background="#0DFFFFFF"
-                  BorderThickness="2" Height="92" Padding="30,0">
-            <Border.BorderBrush>
-              <SolidColorBrush Color="#FF00D4FF" Opacity="0.5"/>
-            </Border.BorderBrush>
-            <Grid>
-              <TextBlock Text="{Binding CodeInput}" VerticalAlignment="Center"
-                         FontFamily="{StaticResource FontMono}" FontSize="46"
-                         FontWeight="Bold" Foreground="{StaticResource TextPrimary}"/>
-              <Rectangle x:Name="CodeCaret" Width="4" Height="48" Fill="{StaticResource CyanBrush}"
-                         HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0">
-                <Rectangle.Triggers>
-                  <EventTrigger RoutedEvent="Loaded">
-                    <BeginStoryboard>
-                      <Storyboard RepeatBehavior="Forever">
-                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                         From="1" To="0" Duration="0:0:0.55" AutoReverse="True"/>
-                      </Storyboard>
-                    </BeginStoryboard>
-                  </EventTrigger>
-                </Rectangle.Triggers>
-              </Rectangle>
-            </Grid>
-          </Border>
-
-          <TextBlock Text="8 characters · 8 ta belgi · format XXXX-XXXX"
-                     HorizontalAlignment="Center" Margin="0,8,0,0"
-                     Foreground="{StaticResource TextDimmed}"
-                     FontFamily="{StaticResource FontMono}" FontSize="15"/>
-
-          <!-- Error -->
-          <TextBlock Text="{Binding CodeError}" HorizontalAlignment="Center"
-                     Foreground="{StaticResource RedBrush}"
-                     FontFamily="{StaticResource FontChakra}" FontSize="16" Margin="0,12,0,0"
-                     Visibility="{Binding HasCodeError, Converter={StaticResource BoolVis}}"/>
-
-          <!-- Close hint -->
-          <TextBlock Text="Esc — yopish · close" HorizontalAlignment="Center" Margin="0,16,0,0"
-                     Foreground="{StaticResource TextDimmed}"
-                     FontFamily="{StaticResource FontMono}" FontSize="13"/>
-        </StackPanel>
-      </Border>
-    </Grid>
   </Grid>
   </Viewbox>
 </UserControl>

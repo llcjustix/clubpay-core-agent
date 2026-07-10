@@ -196,6 +196,39 @@
       </Grid>
     </Border>
 
+    <!-- 5 min warning -->
+    <Border Margin="0,10,0,0" CornerRadius="16" BorderThickness="1"
+            Padding="16,14" BorderBrush="#80FF8A0A"
+            Visibility="{Binding IsWarn5Visible, Converter={StaticResource BoolVis}}">
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+          <GradientStop Color="#F72A1A0E" Offset="0"/>
+          <GradientStop Color="#F70D1117" Offset="1"/>
+        </LinearGradientBrush>
+      </Border.Background>
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Grid.Column="0" Text="{Binding RemainingTimeText}"
+                   Foreground="#FFFF8A0A"
+                   FontFamily="{StaticResource FontMono}" FontSize="36" FontWeight="Bold">
+          <TextBlock.Effect>
+            <DropShadowEffect Color="#FFFF8A0A" BlurRadius="22" ShadowDepth="0" Opacity="0.45"/>
+          </TextBlock.Effect>
+        </TextBlock>
+        <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+          <TextBlock Text="5 daqiqa qoldi" Foreground="#FFFF8A0A"
+                     FontFamily="{StaticResource FontChakra}" FontSize="14" FontWeight="SemiBold"
+                     HorizontalAlignment="Right"/>
+          <TextBlock Text="Warning · Осталось 5 мин" Foreground="{StaticResource TextMuted}"
+                     FontFamily="{StaticResource FontMono}" FontSize="11"
+                     HorizontalAlignment="Right" Margin="0,4,0,0"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
     <!-- 1 min critical -->
     <Border Margin="0,10,0,0" CornerRadius="16" BorderThickness="1"
             Padding="16,14" BorderBrush="#80FF3B5C"

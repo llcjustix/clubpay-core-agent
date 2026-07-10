@@ -1,20 +1,22 @@
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Client.Services;
 
 namespace ClubPay.Agent.Client.ViewModels;
 
+/// <summary>
+/// Purely passive session display: refreshes the countdown text/warn banners every second from
+/// whatever ISessionCoordinator reports. It never decides expiry itself — that is the coordinator's
+/// job (it raises StateChanged, MainViewModel calls Sync/Stop accordingly).
+/// </summary>
 public partial class ActiveSessionViewModel : ObservableObject
 {
     private readonly QrCodeService _qr;
     private readonly DispatcherTimer _timer;
     private Session? _session;
-
-    public event Action? FreezeRequested;
 
     [ObservableProperty] private string _remainingTimeText = "01:24:35";
     [ObservableProperty] private int _remainingSeconds = 5075;
@@ -26,6 +28,7 @@ public partial class ActiveSessionViewModel : ObservableObject
 
     // Warning mini-cards — bound in ActiveSessionView
     [ObservableProperty] private bool _isWarn10Visible;
+    [ObservableProperty] private bool _isWarn5Visible;
     [ObservableProperty] private bool _isWarn1Visible;
 
     public ActiveSessionViewModel(QrCodeService qr)
@@ -33,48 +36,42 @@ public partial class ActiveSessionViewModel : ObservableObject
         _qr = qr;
         _timer = new DispatcherTimer(DispatcherPriority.Normal)
         { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += OnTick;
+        _timer.Tick += (_, _) => RefreshTime(DateTime.UtcNow);
     }
 
-    public void Load(Session session)
+    /// <summary>Called by MainViewModel whenever the coordinator reports an Active session — on
+    /// start, on extend, or on any other StateChanged that leaves the session Active. Cheap to call
+    /// repeatedly; only regenerates the QR/labels when the session identity actually changed.</summary>
+    public void Sync(Session session)
     {
+        bool isNewSession = _session is null || _session.Id != session.Id;
         _session = session;
 
-        ZoneLabel = ZoneLabelFor(session.Tariff.Zone, false);
-        ZoneLabelUz = ZoneLabelFor(session.Tariff.Zone, true);
-        TariffLabel = session.Tariff.DurationLabel;
-
-        var extendUrl = $"https://pay.clubpay.uz/?session={session.Id:N}";
-        ExtendQrImage = _qr.Generate(extendUrl, 116);
-
-        RefreshTime(DateTime.UtcNow);
-        _timer.Start();
-    }
-
-    public void Extend(int additionalSeconds)
-    {
-        if (_session is null) return;
-        _session = _session with { GrantedSeconds = _session.GrantedSeconds + additionalSeconds };
-        RefreshTime(DateTime.UtcNow);
-    }
-
-    public void Stop() => _timer.Stop();
-
-    private void OnTick(object? _, EventArgs __)
-    {
-        var now = DateTime.UtcNow;
-        RefreshTime(now);
-
-        if (_session?.IsExpired(now) == true)
+        if (isNewSession)
         {
-            _timer.Stop();
-            FreezeRequested?.Invoke();
+            ZoneLabel = ZoneLabelFor(session.Tariff.Zone, false);
+            ZoneLabelUz = ZoneLabelFor(session.Tariff.Zone, true);
+            TariffLabel = session.Tariff.DurationLabel;
+
+            var extendUrl = $"https://pay.clubpay.uz/?session={session.Id:N}";
+            ExtendQrImage = _qr.Generate(extendUrl, 116);
         }
+
+        RefreshTime(DateTime.UtcNow);
+        if (!_timer.IsEnabled)
+            _timer.Start();
+    }
+
+    public void Stop()
+    {
+        _timer.Stop();
+        _session = null;
     }
 
     private void RefreshTime(DateTime now)
     {
-        if (_session is null) return;
+        if (_session is null)
+            return;
 
         int rem = _session.RemainingSeconds(now);
         RemainingSeconds = rem;
@@ -84,6 +81,7 @@ public partial class ActiveSessionViewModel : ObservableObject
         PlayedHoursText = played > 0 ? $"{played} soat" : "yangi sessiya";
 
         IsWarn10Visible = rem is > 0 and <= Constants.Timer.WarnAt10Min;
+        IsWarn5Visible = rem is > 0 and <= Constants.Timer.WarnAt5Min;
         IsWarn1Visible = rem is > 0 and <= Constants.Timer.WarnAt1Min;
     }
 

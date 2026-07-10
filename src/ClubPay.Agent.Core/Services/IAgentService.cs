@@ -2,6 +2,8 @@ using ClubPay.Agent.Core.Models;
 
 namespace ClubPay.Agent.Core.Services;
 
+/// <summary>Agent identity/config and OS-level power actions. Session lifecycle lives in
+/// ISessionCoordinator — this interface no longer owns any session state.</summary>
 public interface IAgentService
 {
     string PcId { get; }
@@ -11,21 +13,10 @@ public interface IAgentService
     string WifiSsid { get; }
     string WifiPassword { get; }
 
-    Task<bool> StartSessionAsync(Session session, CancellationToken ct = default);
-    Task EndSessionAsync(CancellationToken ct = default);
-    Task ExtendSessionAsync(int additionalSeconds, CancellationToken ct = default);
     Task SleepAsync(CancellationToken ct = default);
-}
 
-public interface IVoucherService
-{
-    VoucherToken? Redeem(string code, string pcId);
-    bool Validate(VoucherToken token, string pcId, DateTime nowUtc);
-}
-
-public interface ISessionStore
-{
-    Session? Current { get; }
-    void Save(Session session);
-    void Clear();
+    /// <summary>Prevents (or allows) the OS from idling the display/system to sleep on its own —
+    /// used while a paid session is Active/Frozen so Windows' own power plan can't sleep the PC
+    /// underneath a running session.</summary>
+    void KeepAwake(bool keepAwake);
 }
