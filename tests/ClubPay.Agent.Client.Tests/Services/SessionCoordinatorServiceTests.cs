@@ -112,6 +112,38 @@ public class SessionCoordinatorServiceTests
     }
 
     [Fact]
+    public async Task ExtendSessionAsync_WhenActiveBeforeExpiry_AddsSecondsToRemainingBudget()
+    {
+        var m = new Mocks();
+        var sut = m.BuildSut();
+        await sut.StartSessionAsync(MakeStartPayload());
+
+        m.Clock.SetupGet(c => c.UtcNow).Returns(Now.AddSeconds(100));
+        var (result, isDuplicate) = await sut.ExtendSessionAsync(new ExtendSessionPayload("cs", "grant_extend", null, 1800));
+
+        Assert.False(isDuplicate);
+        Assert.Equal(3600 - 100 + 1800, result.RemainingSeconds);
+        Assert.Equal(AgentState.Active, sut.State);
+    }
+
+    [Fact]
+    public async Task ExtendSessionAsync_WhenAlreadyExpiredAfterLongWait_GrantsFullAddedSecondsNotReducedByWait()
+    {
+        var m = new Mocks();
+        var sut = m.BuildSut();
+        await sut.StartSessionAsync(MakeStartPayload());
+
+        // Granted time (3600s) has fully elapsed, plus the PC sat "frozen"/waiting for another
+        // 120s before the extend command arrived — that wait must not eat into added_seconds.
+        m.Clock.SetupGet(c => c.UtcNow).Returns(Now.AddSeconds(3600 + 120));
+        var (result, isDuplicate) = await sut.ExtendSessionAsync(new ExtendSessionPayload("cs", "grant_extend", null, 65));
+
+        Assert.False(isDuplicate);
+        Assert.Equal(65, result.RemainingSeconds);
+        Assert.Equal(AgentState.Active, sut.State);
+    }
+
+    [Fact]
     public async Task ExtendSessionAsync_WhenLocked_ThrowsInvalidState()
     {
         var m = new Mocks();

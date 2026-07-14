@@ -162,16 +162,23 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
                 throw new SessionCommandException(ErrorCode.InvalidState, "no active/frozen session to extend");
 
             var now = _clock.UtcNow;
-            var newEndsAt = (session.EndsAtUtc ?? now) + TimeSpan.FromSeconds(payload.AddedSeconds);
+
+            // Extend from "time remaining now" (0 while Frozen), not the original granted budget —
+            // otherwise wall-clock time already spent waiting in the Frozen grace period would
+            // silently eat into (or exceed) the added seconds, re-expiring the session right after
+            // a supposedly successful extend.
+            var newRemaining = session.RemainingSeconds(now) + payload.AddedSeconds;
+            var newEndsAt = now.AddSeconds(newRemaining);
             var updated = session with
             {
-                GrantedSeconds = session.GrantedSeconds + payload.AddedSeconds,
+                GrantedSeconds = session.ElapsedSeconds(now) + newRemaining,
                 EndsAtUtc = newEndsAt,
             };
 
             await _store.SaveAsync(updated, ct);
             await _idempotency.RecordAppliedAsync(payload.GrantId, ct);
             CurrentSession = updated;
+            _firedThresholds.Clear();
 
             bool wasFrozen = State == AgentState.Frozen;
             State = AgentState.Active;
