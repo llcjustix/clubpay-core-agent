@@ -273,7 +273,9 @@ public sealed class ControllerChannelService : IControllerChannel
         var builder = new UriBuilder(_webSocketUrl);
         var existingQuery = builder.Query.TrimStart('?');
         var pcIdParam = $"external_pc_id={Uri.EscapeDataString(_externalPcId)}";
-        builder.Query = string.IsNullOrEmpty(existingQuery) ? pcIdParam : $"{existingQuery}&{pcIdParam}";
+        var tokenParam = $"agent_token={Uri.EscapeDataString(_agentToken)}";
+        var newParams = $"{pcIdParam}&{tokenParam}";
+        builder.Query = string.IsNullOrEmpty(existingQuery) ? newParams : $"{existingQuery}&{newParams}";
         return builder.Uri;
     }
 

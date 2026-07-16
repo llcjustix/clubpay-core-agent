@@ -37,6 +37,11 @@ public static class Constants
         public const string DefaultPassword = "";
     }
 
+    public static class Qr
+    {
+        public const string PaymentBaseUrl = "https://clubpay.justix.uz/qr";
+    }
+
     /// <summary>Legacy LAN HTTP endpoint still served by ClubPay.Agent.Admin's AgentEndpointServer
     /// (pending-session polling) — kept as-is since Admin is out of scope for this phase; the Client no
     /// longer calls this (see Constants.ControllerChannel for the new WebSocket transport).</summary>

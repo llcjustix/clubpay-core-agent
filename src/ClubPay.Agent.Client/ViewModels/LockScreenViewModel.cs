@@ -1,6 +1,7 @@
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Core.Services;
 using ClubPay.Agent.Client.Services;
@@ -45,7 +46,7 @@ public partial class LockScreenViewModel : ObservableObject
 
     private void GenerateQrCodes()
     {
-        var payUrl = $"https://pay.clubpay.uz/?pc={Uri.EscapeDataString(PcId)}";
+        var payUrl = $"{Constants.Qr.PaymentBaseUrl}/{Uri.EscapeDataString(_agent.ExternalPcId)}";
         PayQrImage = _qr.Generate(payUrl, 300);
         WifiQrImage = _qr.GenerateWifi(_agent.WifiSsid, _agent.WifiPassword, pixelSize: 108);
     }
