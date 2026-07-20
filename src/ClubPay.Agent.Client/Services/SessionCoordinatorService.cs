@@ -485,6 +485,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
     private Task PublishHeartbeatAsync(CancellationToken ct)
     {
         var wireState = PcStateMapper.ToWireState(State, IsManagerLocked, IsRepairMode, _isAsleep, isConnected: true);
+        _logger.LogInformation("heartbeat yuborildi: external_pc_id={ExternalPcId}, pc_state={PcState}", _agent.ExternalPcId, wireState);
         return PublishEventAsync(Constants.ControllerChannel.EventName.Heartbeat,
             new HeartbeatEvent(_agent.ExternalPcId, wireState, ControllersSeen: 1, ServerReachable: true), ct);
     }

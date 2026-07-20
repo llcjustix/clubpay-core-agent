@@ -53,7 +53,7 @@ public partial class App : Application
         sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();
         sc.AddSingleton<IControllerChannel, ControllerChannelService>();
         sc.AddSingleton<QrCodeService>();
-        sc.AddLogging(b => b.AddDebug());
+        sc.AddLogging(b => b.AddDebug().AddConsole());
 
         sc.AddSingleton<LockScreenViewModel>();
         sc.AddSingleton<ActiveSessionViewModel>();

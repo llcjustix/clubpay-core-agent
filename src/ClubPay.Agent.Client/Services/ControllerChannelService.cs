@@ -126,8 +126,10 @@ public sealed class ControllerChannelService : IControllerChannel
 
                 SetState(ChannelConnectionState.Connected);
                 attempt = 0;
+                _logger.LogInformation("Controller kanaliga ulandi (WebSocket handshake, 101 Switching Protocols)");
 
                 await PublishEventAsync(Constants.ControllerChannel.EventName.AgentOnline, new AgentOnlineEvent(_externalPcId), ct);
+                _logger.LogInformation("agent_online yuborildi: external_pc_id={ExternalPcId}", _externalPcId);
 
                 var receiveTask = ReceiveLoopAsync(socket, ct);
                 var sendTask = SendLoopAsync(socket, ct);
