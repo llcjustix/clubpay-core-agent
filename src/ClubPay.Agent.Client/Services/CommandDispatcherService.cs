@@ -22,6 +22,8 @@ public sealed class CommandDispatcherService(
     {
         try
         {
+            logger.LogInformation("Buyruq qabul qilindi: {Name} ({CommandId})", command.Name, command.CommandId);
+
             return command.Name switch
             {
                 Constants.ControllerChannel.CommandName.StartSession => await HandleStartAsync(command, ct),
