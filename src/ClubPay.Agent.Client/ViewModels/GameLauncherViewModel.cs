@@ -22,8 +22,12 @@ public partial class GameLauncherViewModel : ObservableObject
     public string ClubName { get; }
     public string PcId     { get; }
 
-    public GameLauncherViewModel(IConfiguration config)
+    // Docked sidebar inside the shell (ТЗ §22: "остаток времени и баланс-виджет ... из shell").
+    public ActiveSessionViewModel ActiveSession { get; }
+
+    public GameLauncherViewModel(IConfiguration config, ActiveSessionViewModel activeSession)
     {
+        ActiveSession = activeSession;
         ClubName = config["Agent:ClubName"] ?? "NEXUS ARENA";
         PcId     = config["Agent:PcId"]     ?? "PC-01";
 

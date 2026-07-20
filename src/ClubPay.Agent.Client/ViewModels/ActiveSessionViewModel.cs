@@ -17,6 +17,8 @@ public partial class ActiveSessionViewModel : ObservableObject
     private readonly QrCodeService _qr;
     private readonly DispatcherTimer _timer;
     private Session? _session;
+    private int _previousRemainingSeconds = -1;
+    private int _toastTicksRemaining;
 
     [ObservableProperty] private string _remainingTimeText = "01:24:35";
     [ObservableProperty] private int _remainingSeconds = 5075;
@@ -26,10 +28,12 @@ public partial class ActiveSessionViewModel : ObservableObject
     [ObservableProperty] private string _playedHoursText = "2 soat";
     [ObservableProperty] private BitmapImage? _extendQrImage;
 
-    // Warning mini-cards — bound in ActiveSessionView
-    [ObservableProperty] private bool _isWarn10Visible;
-    [ObservableProperty] private bool _isWarn5Visible;
-    [ObservableProperty] private bool _isWarn1Visible;
+    // Warning ladder (ТЗ §7) — bound in ActiveSessionView, mutually exclusive priority:
+    // banner (1 daq) > toast (5 daq, o'z-o'zidan yopiladi) > soft 10-daq karta.
+    [ObservableProperty] private bool _isAnyWarningVisible;
+    [ObservableProperty] private bool _isSoft10Visible;
+    [ObservableProperty] private bool _isToastVisible;
+    [ObservableProperty] private bool _isBannerVisible;
 
     public ActiveSessionViewModel(QrCodeService qr)
     {
@@ -66,6 +70,12 @@ public partial class ActiveSessionViewModel : ObservableObject
     {
         _timer.Stop();
         _session = null;
+        _previousRemainingSeconds = -1;
+        _toastTicksRemaining = 0;
+        IsAnyWarningVisible = false;
+        IsSoft10Visible = false;
+        IsToastVisible = false;
+        IsBannerVisible = false;
     }
 
     private void RefreshTime(DateTime now)
@@ -80,9 +90,23 @@ public partial class ActiveSessionViewModel : ObservableObject
         int played = _session.ElapsedSeconds(now) / 3600;
         PlayedHoursText = played > 0 ? $"{played} soat" : "yangi sessiya";
 
-        IsWarn10Visible = rem is > 0 and <= Constants.Timer.WarnAt10Min;
-        IsWarn5Visible = rem is > 0 and <= Constants.Timer.WarnAt5Min;
-        IsWarn1Visible = rem is > 0 and <= Constants.Timer.WarnAt1Min;
+        IsBannerVisible = SessionWarningCalculator.IsBannerVisible(rem);
+        IsAnyWarningVisible = SessionWarningCalculator.IsAnyWarningVisible(rem);
+
+        if (SessionWarningCalculator.ShouldShowToast(_previousRemainingSeconds, rem))
+        {
+            IsToastVisible = true;
+            _toastTicksRemaining = Constants.Timer.ToastDurationSeconds;
+        }
+        else if (IsToastVisible)
+        {
+            _toastTicksRemaining--;
+            if (_toastTicksRemaining <= 0 || IsBannerVisible)
+                IsToastVisible = false;
+        }
+
+        IsSoft10Visible = IsAnyWarningVisible && !IsToastVisible && !IsBannerVisible;
+        _previousRemainingSeconds = rem;
     }
 
     private static string FormatTime(int totalSeconds)

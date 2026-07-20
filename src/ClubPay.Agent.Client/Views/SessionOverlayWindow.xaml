@@ -4,10 +4,10 @@
         xmlns:views="clr-namespace:ClubPay.Agent.Client.Views"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ResizeMode="NoResize" ShowInTaskbar="False"
-        Width="380" SizeToContent="Height">
+        SizeToContent="WidthAndHeight">
 
   <StackPanel>
-    <views:ActiveSessionView DataContext="{Binding ActiveSession}"/>
+    <views:ActiveSessionCornerView DataContext="{Binding ActiveSession}"/>
 
     <!-- Shown only when a game is running; user taps to return to launcher -->
     <Button x:Name="ReturnBtn"

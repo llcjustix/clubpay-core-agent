@@ -74,7 +74,7 @@ async Task RunCommandAsync(string cmd, string[] parts)
                 int seconds = ParseIntArg(parts, 1, 3600);
                 await SendAndPrintAsync("start_session", new
                 {
-                    external_pc_id = "club12-pc07",
+                    external_pc_id = "pc-001",
                     grant_id = "grant_" + Guid.NewGuid().ToString("N")[..8],
                     granted_seconds = seconds,
                     ends_at = DateTime.UtcNow.AddSeconds(seconds),
@@ -106,30 +106,30 @@ async Task RunCommandAsync(string cmd, string[] parts)
             }
 
         case "lock":
-            await SendAndPrintAsync("lock", new { external_pc_id = "club12-pc07", reason = parts.Length > 1 ? parts[1] : (string?)null });
+            await SendAndPrintAsync("lock", new { external_pc_id = "pc-001", reason = parts.Length > 1 ? parts[1] : (string?)null });
             return;
 
         case "unlock":
-            await SendAndPrintAsync("unlock", new { external_pc_id = "club12-pc07", reason = parts.Length > 1 ? parts[1] : (string?)null });
+            await SendAndPrintAsync("unlock", new { external_pc_id = "pc-001", reason = parts.Length > 1 ? parts[1] : (string?)null });
             return;
 
         case "sleep":
-            await SendAndPrintAsync("sleep", new { external_pc_id = "club12-pc07" });
+            await SendAndPrintAsync("sleep", new { external_pc_id = "pc-001" });
             return;
 
         case "wake":
-            await SendAndPrintAsync("wake", new { external_pc_id = "club12-pc07" });
+            await SendAndPrintAsync("wake", new { external_pc_id = "pc-001" });
             return;
 
         case "repair":
             {
                 bool on = parts.Length > 1 && parts[1].Equals("on", StringComparison.OrdinalIgnoreCase);
-                await SendAndPrintAsync("set_repair", new { external_pc_id = "club12-pc07", on });
+                await SendAndPrintAsync("set_repair", new { external_pc_id = "pc-001", on });
                 return;
             }
 
         case "status":
-            await SendAndPrintAsync("get_status", new { external_pc_id = "club12-pc07" });
+            await SendAndPrintAsync("get_status", new { external_pc_id = "pc-001" });
             return;
 
         default:

@@ -13,6 +13,13 @@ public sealed class KioskLockService : IKioskLockService
     // volatile: hook callback runs on the message-pump thread, SetMode from UI thread
     private volatile KioskLockMode _mode = KioskLockMode.Full;
 
+    // Edge-triggered latch for the shell hotkey — keyed only on F9's own down/up so it re-arms
+    // correctly even if a modifier is released before F9, and OS auto-repeat (which resends
+    // WM_KEYDOWN while F9 is held) doesn't cause repeated toggling.
+    private bool _hotkeyChordDown;
+
+    public event Action? ShellToggleRequested;
+
     public void Install()
     {
         ApplyRegistry(enable: true);
@@ -47,6 +54,9 @@ public sealed class KioskLockService : IKioskLockService
             bool shft = (NativeKiosk.GetKeyState(NativeKiosk.VK_SHIFT)   & 0x8000) != 0;
             var  mode = _mode;
 
+            if (TryHandleShellHotkey(kb.vkCode, (int)wParam, ctrl, shft, mode))
+                return -1;
+
             bool block = kb.vkCode switch
             {
                 // Always blocked — regardless of mode
@@ -66,6 +76,43 @@ public sealed class KioskLockService : IKioskLockService
             if (block) return -1;
         }
         return NativeKiosk.CallNextHookEx(nint.Zero, nCode, wParam, lParam);
+    }
+
+    /// <summary>Ctrl+Shift+F9 → toggles the in-session shell, only during an Active session
+    /// (KioskLockMode.Session). Pure/primitive-typed (no Win32 structs) so it's directly unit
+    /// testable without installing a real hook. Returns true if the key event was consumed.</summary>
+    internal bool TryHandleShellHotkey(uint vkCode, int msg, bool ctrl, bool shft, KioskLockMode mode)
+    {
+        if (mode != KioskLockMode.Session || vkCode != NativeKiosk.VK_F9)
+            return false;
+
+        if (msg == NativeKiosk.WM_KEYDOWN)
+        {
+            // Plain F9 (or F9 with only one modifier) is NOT consumed — games are free to bind
+            // it (e.g. quicksave). Only the full Ctrl+Shift+F9 chord is swallowed.
+            if (!ctrl || !shft)
+                return false;
+
+            if (!_hotkeyChordDown)
+            {
+                _hotkeyChordDown = true;
+                ShellToggleRequested?.Invoke();
+            }
+            return true; // also swallows OS auto-repeat while the chord stays held
+        }
+
+        if (msg == NativeKiosk.WM_KEYUP)
+        {
+            // Only consume the up-event if we consumed the matching down-event — otherwise this
+            // is the release of a plain F9 press that was already let through.
+            if (!_hotkeyChordDown)
+                return false;
+
+            _hotkeyChordDown = false;
+            return true;
+        }
+
+        return false;
     }
 
     private static void ApplyRegistry(bool enable)
@@ -108,6 +155,12 @@ internal static class NativeKiosk
     public const uint VK_MENU = 0x12; // Alt
     public const uint VK_CONTROL = 0x11;
     public const uint VK_SHIFT = 0x10;
+    public const uint VK_F9 = 0x78;
+
+    // wParam values for WH_KEYBOARD_LL — F9 (unlike F10) has no special OS handling, so only the
+    // plain KEYDOWN/KEYUP variants are needed (no SYSKEYDOWN/SYSKEYUP).
+    public const int WM_KEYDOWN = 0x0100;
+    public const int WM_KEYUP = 0x0101;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct KBDLLHOOKSTRUCT

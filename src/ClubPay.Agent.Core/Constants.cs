@@ -9,6 +9,7 @@ public static class Constants
         public const int WarnAt1Min = 60;
         public const int GracePeriod = 600;  // 10 min freeze grace
         public const int IdleSleep = 600;  // 10 min idle → S3
+        public const int ToastDurationSeconds = 6;  // 5-daq тост avtomatik yopilguncha
     }
 
     public static class Money

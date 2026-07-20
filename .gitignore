@@ -368,6 +368,7 @@ FodyWeavers.xsd
 
 *.yml
 /.gitlab-ci.yml
+appsettings.Local.json
 /WebApi/FileApi/wwwroot/contractfiles/
 /WebApi/CronJobApi/hangfire/hf-log.db
 /WebApi/CronJobApi/hangfire/hf.db

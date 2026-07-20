@@ -13,4 +13,9 @@ public interface IKioskLockService
     void Install();
     void Uninstall();
     void SetMode(KioskLockMode mode);
+
+    /// <summary>Ctrl+Shift+F9, only while in Session mode — toggles the in-session shell
+    /// (GameLauncherWindow) without disturbing the running game (ТЗ §22 "по горячей клавише,
+    /// не мешает игре").</summary>
+    event Action? ShellToggleRequested;
 }
