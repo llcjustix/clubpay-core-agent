@@ -32,9 +32,9 @@ public sealed class FakeControllerServer : IAsyncDisposable
 
     public FakeControllerServer()
     {
-        int port = 51193;//GetFreePort();
-        WebSocketUrl = new Uri($"ws://0.0.0.0:{port}/agent/ws");
-        _http.Prefixes.Add($"http://*:{port}/");
+        int port = GetFreePort();
+        WebSocketUrl = new Uri($"ws://localhost:{port}/agent/ws");
+        _http.Prefixes.Add($"http://localhost:{port}/");
     }
 
     public Task StartAsync(CancellationToken ct = default)

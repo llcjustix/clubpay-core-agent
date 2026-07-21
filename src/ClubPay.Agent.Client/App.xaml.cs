@@ -73,6 +73,12 @@ public partial class App : Application
         // Recover persisted session state (survives a crash/restart) before anything else touches it.
         await _services.GetRequiredService<AgentStateRepository>().LoadAsync(_startupCts.Token);
         await _services.GetRequiredService<ISessionCoordinator>().StartAsync(_startupCts.Token);
+
+        // Wired here (not via constructor injection) to break the Dispatcher->Coordinator->Channel
+        // ->Dispatcher construction cycle — see IControllerChannel.IncomingCommandHandler doc comment.
+        // Must happen before StartAsync so the very first inbound command has somewhere to go.
+        _services.GetRequiredService<IControllerChannel>().IncomingCommandHandler =
+            _services.GetRequiredService<ICommandDispatcher>().DispatchAsync;
         await _services.GetRequiredService<IControllerChannel>().StartAsync(_startupCts.Token);
 
         _ = _services.GetRequiredService<SessionOverlayWindow>();

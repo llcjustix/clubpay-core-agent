@@ -97,5 +97,10 @@ public static class Constants
         public const int ReconnectMaxJitterMs = 500;
         public const int SendTimeoutSeconds = 10;   // matches Controller-side 10s ack expectation
         public const int MaxSendRetries = 3;        // outbox flush attempts only, never a live command reply
+
+        // Telemetry (heartbeat/pc_state_changed) is coalesced to 1 pending instance per type, so this
+        // limit in practice only guards against an unusual pileup of money/session events (contract §9:
+        // those are never auto-dropped, only warned about).
+        public const int MaxOutboxSize = 500;
     }
 }

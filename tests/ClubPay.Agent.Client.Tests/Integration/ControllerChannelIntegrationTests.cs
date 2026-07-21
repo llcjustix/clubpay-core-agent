@@ -74,6 +74,7 @@ public sealed class ControllerChannelIntegrationTests : IAsyncDisposable
         _providers.Add(provider);
 
         var channel = provider.GetRequiredService<IControllerChannel>();
+        channel.IncomingCommandHandler = provider.GetRequiredService<ICommandDispatcher>().DispatchAsync;
         await channel.StartAsync();
         await server.WaitForConnectionAsync(TimeSpan.FromSeconds(5));
 

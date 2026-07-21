@@ -24,6 +24,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
     private readonly ISessionStore _store;
     private readonly IGrantIdempotencyStore _idempotency;
     private readonly IControllerChannel _channel;
+    private readonly IControllerOutbox _outbox;
     private readonly IAgentService _agent;
     private readonly IKioskLockService _kioskLock;
     private readonly IProcessCleanupService _processCleanup;
@@ -50,6 +51,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         ISessionStore store,
         IGrantIdempotencyStore idempotency,
         IControllerChannel channel,
+        IControllerOutbox outbox,
         IAgentService agent,
         IKioskLockService kioskLock,
         IProcessCleanupService processCleanup,
@@ -60,6 +62,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         _store = store;
         _idempotency = idempotency;
         _channel = channel;
+        _outbox = outbox;
         _agent = agent;
         _kioskLock = kioskLock;
         _processCleanup = processCleanup;
@@ -484,6 +487,9 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
 
     internal Task PublishHeartbeatAsync(CancellationToken ct)
     {
+        // _channel is kept only to read live connection health here — event writes go through
+        // _outbox directly (see private PublishEventAsync below), so this is a read, not a cycle-causing
+        // dependency (nothing about Channel's construction depends back on Coordinator or Dispatcher).
         var isConnected = _channel.ConnectionState == ChannelConnectionState.Connected;
         var wireState = PcStateMapper.ToWireState(State, IsManagerLocked, IsRepairMode, _isAsleep, isConnected);
         _logger.LogInformation("heartbeat yuborildi: external_pc_id={ExternalPcId}, pc_state={PcState}", _agent.ExternalPcId, wireState);
@@ -502,7 +508,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
     {
         try
         {
-            await _channel.PublishEventAsync(name, payload, ct);
+            await _outbox.PublishEventAsync(name, payload, ct);
         }
         catch (Exception ex)
         {

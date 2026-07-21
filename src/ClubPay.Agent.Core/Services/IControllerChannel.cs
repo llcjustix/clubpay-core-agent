@@ -1,3 +1,5 @@
+using ClubPay.Agent.Core.Contracts;
+
 namespace ClubPay.Agent.Core.Services;
 
 public enum ChannelConnectionState
@@ -17,6 +19,11 @@ public interface IControllerChannel : IAsyncDisposable
 {
     ChannelConnectionState ConnectionState { get; }
     event Action<ChannelConnectionState>? ConnectionStateChanged;
+
+    /// <summary>Assigned once by the composition root after every singleton already exists, so incoming
+    /// commands can reach <see cref="ICommandDispatcher"/> without a constructor dependency that would
+    /// close the Dispatcher→Coordinator→Channel→Dispatcher cycle (no service-locator needed).</summary>
+    Func<CommandEnvelope, CancellationToken, Task<CommandResultEnvelope>>? IncomingCommandHandler { get; set; }
 
     Task StartAsync(CancellationToken ct = default);
     Task StopAsync(CancellationToken ct = default);

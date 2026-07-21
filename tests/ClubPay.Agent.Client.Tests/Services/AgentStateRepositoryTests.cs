@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using ClubPay.Agent.Client.Services;
+using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Contracts;
 using ClubPay.Agent.Core.Models;
 
@@ -21,12 +24,12 @@ public class AgentStateRepositoryTests : IDisposable
             Directory.Delete(_dataDir, recursive: true);
     }
 
-    private AgentStateRepository BuildSut()
+    private AgentStateRepository BuildSut(ILogger<AgentStateRepository>? logger = null)
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Agent:DataDirectory"] = _dataDir })
             .Build();
-        return new AgentStateRepository(config, NullLogger<AgentStateRepository>.Instance);
+        return new AgentStateRepository(config, logger ?? NullLogger<AgentStateRepository>.Instance);
     }
 
     private static Session MakeSession() =>
@@ -121,5 +124,73 @@ public class AgentStateRepositoryTests : IDisposable
         var loaded = await restarted.LoadAsync();
 
         Assert.Null(loaded);
+    }
+
+    [Fact]
+    public async Task PublishEventAsync_ThenGetPendingAsync_ReturnsEnvelope()
+    {
+        var sut = BuildSut();
+
+        await sut.PublishEventAsync("session_started", new { });
+        var pending = await sut.GetPendingAsync();
+
+        Assert.Single(pending);
+        Assert.Equal("session_started", pending[0].Name);
+    }
+
+    [Fact]
+    public async Task PublishEventAsync_WhenHeartbeatTwice_CoalescesToLatestOnly()
+    {
+        var sut = BuildSut();
+
+        await sut.PublishEventAsync(Constants.ControllerChannel.EventName.Heartbeat, new { seq = 1 });
+        await sut.PublishEventAsync(Constants.ControllerChannel.EventName.Heartbeat, new { seq = 2 });
+        var pending = await sut.GetPendingAsync();
+
+        Assert.Single(pending);
+        Assert.Equal(new { seq = 2 }, pending[0].Payload);
+    }
+
+    [Fact]
+    public async Task PublishEventAsync_WhenSessionEventsTwice_KeepsBothNotCoalesced()
+    {
+        var sut = BuildSut();
+
+        await sut.PublishEventAsync("session_started", new { });
+        await sut.PublishEventAsync("session_started", new { });
+        var pending = await sut.GetPendingAsync();
+
+        Assert.Equal(2, pending.Count);
+    }
+
+    [Fact]
+    public async Task WaitForPendingAsync_AfterPublish_CompletesWithoutTimeout()
+    {
+        var sut = BuildSut();
+        var waitTask = sut.WaitForPendingAsync(TimeSpan.FromSeconds(5));
+
+        await sut.PublishEventAsync("session_started", new { });
+
+        var completed = await Task.WhenAny(waitTask, Task.Delay(TimeSpan.FromSeconds(2)));
+        Assert.Same(waitTask, completed);
+    }
+
+    [Fact]
+    public async Task PublishEventAsync_WhenOutboxExceedsLimit_LogsWarning()
+    {
+        var logger = new Mock<ILogger<AgentStateRepository>>();
+        var sut = BuildSut(logger.Object);
+
+        for (int i = 0; i <= Constants.ControllerChannel.MaxOutboxSize; i++)
+            await sut.PublishEventAsync("session_started", new { });
+
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
     }
 }

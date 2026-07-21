@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Contracts;
 using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Core.Services;
@@ -14,13 +15,14 @@ namespace ClubPay.Agent.Client.Services;
 /// three concerns share one file deliberately — a session-save and its grant-id record must never be
 /// observed independently of each other after a crash.
 /// </summary>
-public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore, IControllerOutbox
+public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore, IControllerOutbox, IDisposable
 {
     private static readonly TimeSpan GrantRetention = TimeSpan.FromDays(30);
 
     private readonly string _filePath;
     private readonly ILogger<AgentStateRepository> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly SemaphoreSlim _sendSignal = new(0);
 
     private PersistedState _state = new(null, [], []);
     private bool _loaded;
@@ -125,6 +127,44 @@ public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore
         }
     }
 
+    public async Task PublishEventAsync(string eventName, object payload, CancellationToken ct = default)
+    {
+        var evt = new EventEnvelope(
+            Constants.ControllerChannel.MessageType.Event, eventName, "ev_" + Guid.NewGuid().ToString("N"), DateTime.UtcNow, payload);
+
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await EnsureLoadedAsync(ct);
+
+            // Telemetry (heartbeat/pc_state_changed) reflects current state, not history — while offline
+            // it must not accumulate on disk (contract §9: money/session events take priority), so only
+            // the latest pending instance per type is kept. Money/session events are never coalesced.
+            var isTelemetry = eventName is Constants.ControllerChannel.EventName.Heartbeat
+                or Constants.ControllerChannel.EventName.PcStateChanged;
+            var outbox = isTelemetry
+                ? _state.Outbox.FindAll(e => e.Name != eventName)
+                : new List<EventEnvelope>(_state.Outbox);
+            outbox.Add(evt);
+
+            if (outbox.Count > Constants.ControllerChannel.MaxOutboxSize)
+            {
+                _logger.LogWarning(
+                    "Outbox hajmi limitdan oshdi: {Count}/{Max} — pul/sessiya eventlari yo'qotilmaydi, tekshiring",
+                    outbox.Count, Constants.ControllerChannel.MaxOutboxSize);
+            }
+
+            _state = _state with { Outbox = outbox };
+            await WriteToDiskAsync(ct);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        _sendSignal.Release();
+    }
+
     public async Task EnqueueAsync(EventEnvelope evt, CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct);
@@ -169,6 +209,15 @@ public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore
         {
             _gate.Release();
         }
+    }
+
+    public Task WaitForPendingAsync(TimeSpan timeout, CancellationToken ct = default) =>
+        _sendSignal.WaitAsync(timeout, ct);
+
+    public void Dispose()
+    {
+        _gate.Dispose();
+        _sendSignal.Dispose();
     }
 
     private async Task EnsureLoadedAsync(CancellationToken ct)

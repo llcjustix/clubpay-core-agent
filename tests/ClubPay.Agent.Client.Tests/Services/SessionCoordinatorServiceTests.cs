@@ -19,6 +19,7 @@ public class SessionCoordinatorServiceTests
         public Mock<ISessionStore> Store { get; } = new();
         public Mock<IGrantIdempotencyStore> Idempotency { get; } = new();
         public Mock<IControllerChannel> Channel { get; } = new();
+        public Mock<IControllerOutbox> Outbox { get; } = new();
         public Mock<IAgentService> Agent { get; } = new();
         public Mock<IKioskLockService> KioskLock { get; } = new();
         public Mock<IProcessCleanupService> ProcessCleanup { get; } = new();
@@ -31,13 +32,13 @@ public class SessionCoordinatorServiceTests
             Store.Setup(s => s.ClearAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
             Idempotency.Setup(i => i.HasAppliedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
             Idempotency.Setup(i => i.RecordAppliedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-            Channel.Setup(c => c.PublishEventAsync(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+            Outbox.Setup(o => o.PublishEventAsync(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
             Agent.SetupGet(a => a.ExternalPcId).Returns("club12-pc07");
             Clock.SetupGet(c => c.UtcNow).Returns(Now);
         }
 
         public SessionCoordinatorService BuildSut() => new(
-            Store.Object, Idempotency.Object, Channel.Object, Agent.Object,
+            Store.Object, Idempotency.Object, Channel.Object, Outbox.Object, Agent.Object,
             KioskLock.Object, ProcessCleanup.Object, Idle.Object, Clock.Object,
             NullLogger<SessionCoordinatorService>.Instance);
     }
@@ -82,7 +83,7 @@ public class SessionCoordinatorServiceTests
         Assert.False(isDuplicate);
         Assert.Equal(3600, result.RemainingSeconds);
         Assert.Equal(AgentState.Active, sut.State);
-        m.Channel.Verify(c => c.PublishEventAsync("session_started", It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        m.Outbox.Verify(o => o.PublishEventAsync("session_started", It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
         m.KioskLock.Verify(k => k.SetMode(KioskLockMode.Session), Times.Once);
     }
 
@@ -167,7 +168,7 @@ public class SessionCoordinatorServiceTests
 
         Assert.Equal(AgentState.Locked, sut.State);
         Assert.Null(sut.CurrentSession);
-        m.Channel.Verify(c => c.PublishEventAsync("session_ended", It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+        m.Outbox.Verify(o => o.PublishEventAsync("session_ended", It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
         m.ProcessCleanup.Verify(p => p.KillSessionProcesses(), Times.Once);
         Assert.Equal(3600, result.RemainingSeconds);
         Assert.Equal(0, result.ConsumedSeconds);
@@ -283,9 +284,9 @@ public class SessionCoordinatorServiceTests
 
         await sut.PublishHeartbeatAsync(CancellationToken.None);
 
-        m.Channel.Verify(c => c.PublishEventAsync(
+        m.Outbox.Verify(o => o.PublishEventAsync(
             "heartbeat",
-            It.Is<object>(o => ((HeartbeatEvent)o).ControllersSeen == 1 && ((HeartbeatEvent)o).ServerReachable),
+            It.Is<object>(p => ((HeartbeatEvent)p).ControllersSeen == 1 && ((HeartbeatEvent)p).ServerReachable),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -298,9 +299,9 @@ public class SessionCoordinatorServiceTests
 
         await sut.PublishHeartbeatAsync(CancellationToken.None);
 
-        m.Channel.Verify(c => c.PublishEventAsync(
+        m.Outbox.Verify(o => o.PublishEventAsync(
             "heartbeat",
-            It.Is<object>(o => ((HeartbeatEvent)o).ControllersSeen == 0 && !((HeartbeatEvent)o).ServerReachable),
+            It.Is<object>(p => ((HeartbeatEvent)p).ControllersSeen == 0 && !((HeartbeatEvent)p).ServerReachable),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 }

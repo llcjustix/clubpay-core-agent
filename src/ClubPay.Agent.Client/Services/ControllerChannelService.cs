@@ -2,7 +2,6 @@ using System.IO;
 using System.Net.WebSockets;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Contracts;
@@ -20,32 +19,27 @@ namespace ClubPay.Agent.Client.Services;
 /// </summary>
 public sealed class ControllerChannelService : IControllerChannel
 {
-    private readonly IServiceProvider _serviceProvider;
     private readonly IControllerOutbox _outbox;
     private readonly string _webSocketUrl;
     private readonly string _agentToken;
     private readonly string _externalPcId;
     private readonly ILogger<ControllerChannelService> _logger;
 
-    private readonly SemaphoreSlim _sendSignal = new(0);
     private CancellationTokenSource? _lifetimeCts;
     private Task? _runLoopTask;
 
     public ChannelConnectionState ConnectionState { get; private set; } = ChannelConnectionState.Disconnected;
     public event Action<ChannelConnectionState>? ConnectionStateChanged;
 
-    // ICommandDispatcher is resolved lazily via IServiceProvider rather than taken as a direct
-    // constructor dependency: ICommandDispatcher -> ISessionCoordinator -> IControllerChannel would
-    // otherwise be a genuine DI construction cycle (verified by actually running the composed app —
-    // the container refuses to build it). Resolving it on first use, once the whole container already
-    // exists, breaks the cycle without reintroducing a "ViewModel subscribes to transport" anti-pattern.
+    // Assigned by the composition root (App.xaml.cs) after every singleton already exists — see the
+    // interface doc comment for why this replaces a constructor dependency on ICommandDispatcher.
+    public Func<CommandEnvelope, CancellationToken, Task<CommandResultEnvelope>>? IncomingCommandHandler { get; set; }
+
     public ControllerChannelService(
-        IServiceProvider serviceProvider,
         IControllerOutbox outbox,
         IConfiguration config,
         ILogger<ControllerChannelService> logger)
     {
-        _serviceProvider = serviceProvider;
         _outbox = outbox;
         _logger = logger;
         _webSocketUrl = config["Controller:WebSocketUrl"] ?? string.Empty;
@@ -88,13 +82,9 @@ public sealed class ControllerChannelService : IControllerChannel
 
     public async Task PublishEventAsync(string eventName, object payload, CancellationToken ct = default)
     {
-        var evt = new EventEnvelope(
-            Constants.ControllerChannel.MessageType.Event, eventName, "ev_" + Guid.NewGuid().ToString("N"), DateTime.UtcNow, payload);
-
         try
         {
-            await _outbox.EnqueueAsync(evt, ct);
-            _sendSignal.Release();
+            await _outbox.PublishEventAsync(eventName, payload, ct);
         }
         catch (Exception ex)
         {
@@ -106,7 +96,6 @@ public sealed class ControllerChannelService : IControllerChannel
     {
         await StopAsync();
         _lifetimeCts?.Dispose();
-        _sendSignal.Dispose();
     }
 
     private async Task RunConnectionLoopAsync(CancellationToken ct)
@@ -218,8 +207,13 @@ public sealed class ControllerChannelService : IControllerChannel
             object? payload = root.TryGetProperty("payload", out var payloadProp) ? payloadProp.Clone() : null;
 
             var command = new CommandEnvelope(Constants.ControllerChannel.MessageType.Command, name, commandId, ts, payload);
-            var dispatcher = _serviceProvider.GetRequiredService<ICommandDispatcher>();
-            var result = await dispatcher.DispatchAsync(command, ct);
+            if (IncomingCommandHandler is not { } handler)
+            {
+                _logger.LogWarning("IncomingCommandHandler sozlanmagan — buyruq e'tiborsiz qoldirildi: {Name}", name);
+                return;
+            }
+
+            var result = await handler(command, ct);
 
             var json = JsonSerializer.SerializeToUtf8Bytes(result, ControllerJsonOptions.Default);
             await socket.SendAsync(new ArraySegment<byte>(json), WebSocketMessageType.Text, endOfMessage: true, ct);
@@ -241,7 +235,7 @@ public sealed class ControllerChannelService : IControllerChannel
                 {
                     try
                     {
-                        await _sendSignal.WaitAsync(TimeSpan.FromSeconds(5), ct);
+                        await _outbox.WaitForPendingAsync(TimeSpan.FromSeconds(5), ct);
                     }
                     catch (ObjectDisposedException)
                     {
