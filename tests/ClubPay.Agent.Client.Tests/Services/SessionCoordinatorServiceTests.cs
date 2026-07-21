@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using ClubPay.Agent.Client.Services;
 using ClubPay.Agent.Core.Contracts.Enums;
+using ClubPay.Agent.Core.Contracts.Events;
 using ClubPay.Agent.Core.Contracts.Payloads;
 using ClubPay.Agent.Core.Exceptions;
 using ClubPay.Agent.Core.Models;
@@ -271,5 +272,35 @@ public class SessionCoordinatorServiceTests
         Assert.Equal(PcState.Occupied, status.PcState);
         Assert.Equal(SessionState.Active, status.SessionState);
         Assert.Equal(3600, status.RemainingSeconds);
+    }
+
+    [Fact]
+    public async Task PublishHeartbeatAsync_WhenChannelConnected_ReportsControllerSeenAndReachable()
+    {
+        var m = new Mocks();
+        m.Channel.SetupGet(c => c.ConnectionState).Returns(ChannelConnectionState.Connected);
+        var sut = m.BuildSut();
+
+        await sut.PublishHeartbeatAsync(CancellationToken.None);
+
+        m.Channel.Verify(c => c.PublishEventAsync(
+            "heartbeat",
+            It.Is<object>(o => ((HeartbeatEvent)o).ControllersSeen == 1 && ((HeartbeatEvent)o).ServerReachable),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PublishHeartbeatAsync_WhenChannelDisconnected_ReportsZeroControllersAndUnreachable()
+    {
+        var m = new Mocks();
+        m.Channel.SetupGet(c => c.ConnectionState).Returns(ChannelConnectionState.Disconnected);
+        var sut = m.BuildSut();
+
+        await sut.PublishHeartbeatAsync(CancellationToken.None);
+
+        m.Channel.Verify(c => c.PublishEventAsync(
+            "heartbeat",
+            It.Is<object>(o => ((HeartbeatEvent)o).ControllersSeen == 0 && !((HeartbeatEvent)o).ServerReachable),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }

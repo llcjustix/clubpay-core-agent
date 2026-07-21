@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Contracts;
 using ClubPay.Agent.Core.Contracts.Enums;
+using ClubPay.Agent.Core.Contracts.Events;
 using ClubPay.Agent.Core.Contracts.Payloads;
 using ClubPay.Agent.Core.Exceptions;
 using ClubPay.Agent.Core.Services;
@@ -16,6 +17,8 @@ namespace ClubPay.Agent.Client.Services;
 /// </summary>
 public sealed class CommandDispatcherService(
     ISessionCoordinator coordinator,
+    IControllerChannel channel,
+    IAgentService agent,
     ILogger<CommandDispatcherService> logger) : ICommandDispatcher
 {
     public async Task<CommandResultEnvelope> DispatchAsync(CommandEnvelope command, CancellationToken ct = default)
@@ -42,14 +45,20 @@ public sealed class CommandDispatcherService(
         }
         catch (SessionCommandException ex)
         {
+            await PublishCommandFailedAsync(command, ex.ErrorCode, ct);
             return Error(command, ex.ErrorCode, ex.Message);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Command {Name} ({CommandId}) failed", command.Name, command.CommandId);
+            await PublishCommandFailedAsync(command, ErrorCode.InternalError, ct);
             return Error(command, ErrorCode.InternalError, "internal error");
         }
     }
+
+    private Task PublishCommandFailedAsync(CommandEnvelope command, ErrorCode errorCode, CancellationToken ct) =>
+        channel.PublishEventAsync(Constants.ControllerChannel.EventName.CommandFailed,
+            new CommandFailedEvent(command.CommandId, agent.ExternalPcId, errorCode), ct);
 
     private async Task<CommandResultEnvelope> HandleStartAsync(CommandEnvelope command, CancellationToken ct)
     {
