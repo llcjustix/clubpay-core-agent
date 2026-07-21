@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Core.Services;
 
@@ -13,6 +14,7 @@ public sealed class AgentService : IAgentService
     public string ClubName { get; }
     public string WifiSsid { get; }
     public string WifiPassword { get; }
+    public string PaymentBaseUrl { get; }
 
     public AgentService(IConfiguration config, ILogger<AgentService> logger)
     {
@@ -21,6 +23,7 @@ public sealed class AgentService : IAgentService
         WifiSsid = config["Agent:WifiSsid"] ?? "ClubPay-Guest";
         WifiPassword = config["Agent:WifiPassword"] ?? string.Empty;
         Zone = Enum.TryParse<ZoneType>(config["Agent:Zone"], out var z) ? z : ZoneType.Standard;
+        PaymentBaseUrl = config["Qr:PaymentBaseUrl"] ?? Constants.Qr.PaymentBaseUrl;
 
         var externalPcId = config["Controller:ExternalPcId"];
         if (string.IsNullOrWhiteSpace(externalPcId))

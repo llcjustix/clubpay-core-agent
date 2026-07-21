@@ -12,6 +12,7 @@ public interface IAgentService
     string ClubName { get; }
     string WifiSsid { get; }
     string WifiPassword { get; }
+    string PaymentBaseUrl { get; }
 
     Task SleepAsync(CancellationToken ct = default);
 

@@ -2,6 +2,8 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ClubPay.Agent.Core;
+using ClubPay.Agent.Core.Models;
+using ClubPay.Agent.Core.Services;
 using ClubPay.Agent.Client.Services;
 
 namespace ClubPay.Agent.Client.ViewModels;
@@ -14,6 +16,7 @@ namespace ClubPay.Agent.Client.ViewModels;
 public partial class FreezeViewModel : ObservableObject
 {
     private readonly QrCodeService _qr;
+    private readonly IAgentService _agent;
     private readonly DispatcherTimer _timer;
     private DateTime _untilUtc;
 
@@ -23,23 +26,22 @@ public partial class FreezeViewModel : ObservableObject
 
     [ObservableProperty] private BitmapImage? _extendQrImage;
 
-    public FreezeViewModel(QrCodeService qr)
+    public FreezeViewModel(QrCodeService qr, IAgentService agent)
     {
         _qr = qr;
+        _agent = agent;
         _timer = new DispatcherTimer(DispatcherPriority.Normal)
         { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => Refresh();
     }
 
-    /// <summary>untilUtc is the grace deadline the coordinator computed; sessionIdHex (if any) makes the
+    /// <summary>untilUtc is the grace deadline the coordinator computed; session (if any) makes the
     /// QR session-bound so a photographed/replayed code can't be reused on another PC/session.</summary>
-    public void ShowGrace(DateTime untilUtc, string? sessionIdHex = null)
+    public void ShowGrace(DateTime untilUtc, Session? session = null)
     {
         _untilUtc = untilUtc;
 
-        var extendUrl = string.IsNullOrEmpty(sessionIdHex)
-            ? "https://pay.clubpay.uz/"
-            : $"https://pay.clubpay.uz/?session={sessionIdHex}";
+        var extendUrl = QrUrlBuilder.BuildSessionUrl(_agent.PaymentBaseUrl, _agent.ExternalPcId, session?.CoreSessionId, session?.Id);
         ExtendQrImage = _qr.Generate(extendUrl, 320);
 
         Refresh();

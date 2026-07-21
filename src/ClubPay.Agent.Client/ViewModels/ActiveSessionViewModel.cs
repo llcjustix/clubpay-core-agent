@@ -3,6 +3,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Models;
+using ClubPay.Agent.Core.Services;
 using ClubPay.Agent.Client.Services;
 
 namespace ClubPay.Agent.Client.ViewModels;
@@ -15,6 +16,7 @@ namespace ClubPay.Agent.Client.ViewModels;
 public partial class ActiveSessionViewModel : ObservableObject
 {
     private readonly QrCodeService _qr;
+    private readonly IAgentService _agent;
     private readonly DispatcherTimer _timer;
     private Session? _session;
     private int _previousRemainingSeconds = -1;
@@ -35,9 +37,10 @@ public partial class ActiveSessionViewModel : ObservableObject
     [ObservableProperty] private bool _isToastVisible;
     [ObservableProperty] private bool _isBannerVisible;
 
-    public ActiveSessionViewModel(QrCodeService qr)
+    public ActiveSessionViewModel(QrCodeService qr, IAgentService agent)
     {
         _qr = qr;
+        _agent = agent;
         _timer = new DispatcherTimer(DispatcherPriority.Normal)
         { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => RefreshTime(DateTime.UtcNow);
@@ -57,7 +60,7 @@ public partial class ActiveSessionViewModel : ObservableObject
             ZoneLabelUz = ZoneLabelFor(session.Tariff.Zone, true);
             TariffLabel = session.Tariff.DurationLabel;
 
-            var extendUrl = $"https://pay.clubpay.uz/?session={session.Id:N}";
+            var extendUrl = QrUrlBuilder.BuildSessionUrl(_agent.PaymentBaseUrl, _agent.ExternalPcId, session.CoreSessionId, session.Id);
             ExtendQrImage = _qr.Generate(extendUrl, 116);
         }
 

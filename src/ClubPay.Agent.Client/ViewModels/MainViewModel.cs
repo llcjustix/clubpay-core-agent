@@ -77,7 +77,7 @@ public partial class MainViewModel : ObservableObject
 
         if (newState == AgentState.Frozen && _coordinator.FrozenUntilUtc is { } until)
         {
-            Freeze.ShowGrace(until, _coordinator.CurrentSession?.Id.ToString("N"));
+            Freeze.ShowGrace(until, _coordinator.CurrentSession);
         }
 
         State = newState;

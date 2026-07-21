@@ -46,7 +46,7 @@ public partial class LockScreenViewModel : ObservableObject
 
     private void GenerateQrCodes()
     {
-        var payUrl = $"{Constants.Qr.PaymentBaseUrl}/{Uri.EscapeDataString(_agent.ExternalPcId)}";
+        var payUrl = QrUrlBuilder.BuildLockScreenUrl(_agent.PaymentBaseUrl, _agent.ExternalPcId);
         PayQrImage = _qr.Generate(payUrl, 300);
         WifiQrImage = _qr.GenerateWifi(_agent.WifiSsid, _agent.WifiPassword, pixelSize: 108);
     }
