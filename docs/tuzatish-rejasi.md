@@ -151,7 +151,7 @@ o'tishi va DI konteyner real qurilishini (App.xaml.cs kompozitsiyasi) tekshirish
 shart.
 ```
 
-### [ ] T5. VoucherService — Ed25519 oflayn vaucher (ТЗ §6/10/13)
+### [x] T5. VoucherService — Ed25519 oflayn vaucher (ТЗ §6/10/13)
 
 **Muammo:** ТЗ V1 ning to'laqonli qismi bo'lgan vaucher kodda 0% — na servis, na NSec
 paketi, na kiritish maydoni. `Constants.Voucher.MinRemainingSeconds = 300` ham ТЗ'ga

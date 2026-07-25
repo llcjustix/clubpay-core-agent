@@ -50,6 +50,7 @@ public partial class App : Application
         sc.AddSingleton<IIdleDetectionService, IdleDetectionService>();
         sc.AddSingleton<ISystemClock, SystemClock>();
         sc.AddSingleton<ISessionCoordinator, SessionCoordinatorService>();
+        sc.AddSingleton<IVoucherService, VoucherService>();
         sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();
         sc.AddSingleton<IControllerChannel, ControllerChannelService>();
         sc.AddSingleton<IConnectionStateProvider>(sp => sp.GetRequiredService<IControllerChannel>());

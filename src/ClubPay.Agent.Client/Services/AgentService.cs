@@ -10,6 +10,7 @@ public sealed class AgentService : IAgentService
 {
     public string PcId { get; }
     public string ExternalPcId { get; }
+    public string? ClubId { get; }
     public ZoneType Zone { get; }
     public string ClubName { get; }
     public string WifiSsid { get; }
@@ -19,6 +20,7 @@ public sealed class AgentService : IAgentService
     public AgentService(IConfiguration config, ILogger<AgentService> logger)
     {
         PcId = config["Agent:PcId"] ?? "PC-01";
+        ClubId = config["Controller:ClubId"];
         ClubName = config["Agent:ClubName"] ?? "NEXUS ARENA";
         WifiSsid = config["Agent:WifiSsid"] ?? "ClubPay-Guest";
         WifiPassword = config["Agent:WifiPassword"] ?? string.Empty;

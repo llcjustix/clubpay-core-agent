@@ -29,7 +29,6 @@ public static class Constants
     public static class Voucher
     {
         public const int DefaultTtlDays = 30;
-        public const int MinRemainingSeconds = 300;  // 5 min minimum to issue voucher
     }
 
     public static class Wifi

@@ -8,6 +8,10 @@ public interface IAgentService
 {
     string PcId { get; }
     string ExternalPcId { get; }
+
+    /// <summary>Contract §2 club_id — issued by Billing, identifies the club (not the individual PC).
+    /// Null when unconfigured; only club-bound vouchers are affected (PC-bound vouchers don't need it).</summary>
+    string? ClubId { get; }
     ZoneType Zone { get; }
     string ClubName { get; }
     string WifiSsid { get; }
