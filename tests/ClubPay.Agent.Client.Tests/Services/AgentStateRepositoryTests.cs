@@ -193,4 +193,90 @@ public class AgentStateRepositoryTests : IDisposable
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.AtLeastOnce);
     }
+
+    [Fact]
+    public async Task PublishEventAsync_WhenHeartbeat_NeverPersistedAcrossRestart()
+    {
+        var sut = BuildSut();
+
+        await sut.PublishEventAsync(Constants.ControllerChannel.EventName.Heartbeat, new { });
+
+        var restarted = BuildSut();
+        var pending = await restarted.GetPendingAsync();
+
+        Assert.Empty(pending);
+    }
+
+    [Fact]
+    public async Task PublishEventAsync_WhenPcStateChanged_NeverPersistedAcrossRestart()
+    {
+        var sut = BuildSut();
+
+        await sut.PublishEventAsync(Constants.ControllerChannel.EventName.PcStateChanged, new { });
+
+        var restarted = BuildSut();
+        var pending = await restarted.GetPendingAsync();
+
+        Assert.Empty(pending);
+    }
+
+    [Fact]
+    public async Task PublishEventAsync_WhenSessionStarted_PersistsAcrossRestart()
+    {
+        var sut = BuildSut();
+
+        await sut.PublishEventAsync("session_started", new { });
+
+        var restarted = BuildSut();
+        var pending = await restarted.GetPendingAsync();
+
+        Assert.Single(pending);
+        Assert.Equal("session_started", pending[0].Name);
+    }
+
+    [Fact]
+    public async Task GetPendingAsync_WhenTelemetryAndMoneyEventsBothPending_ReturnsBoth()
+    {
+        var sut = BuildSut();
+
+        await sut.PublishEventAsync(Constants.ControllerChannel.EventName.Heartbeat, new { });
+        await sut.PublishEventAsync("session_started", new { });
+        var pending = await sut.GetPendingAsync();
+
+        Assert.Equal(2, pending.Count);
+        Assert.Contains(pending, e => e.Name == Constants.ControllerChannel.EventName.Heartbeat);
+        Assert.Contains(pending, e => e.Name == "session_started");
+    }
+
+    [Fact]
+    public async Task MarkSentAsync_WhenEventIsTelemetry_RemovesFromInMemoryPending()
+    {
+        var sut = BuildSut();
+        await sut.PublishEventAsync(Constants.ControllerChannel.EventName.Heartbeat, new { });
+        var eventId = (await sut.GetPendingAsync()).Single().EventId;
+
+        await sut.MarkSentAsync(eventId);
+        var pending = await sut.GetPendingAsync();
+
+        Assert.Empty(pending);
+    }
+
+    [Fact]
+    public async Task PublishEventAsync_WhenManyHeartbeatsWhileOffline_DoesNotCountTowardOutboxLimit()
+    {
+        var logger = new Mock<ILogger<AgentStateRepository>>();
+        var sut = BuildSut(logger.Object);
+
+        for (int i = 0; i < Constants.ControllerChannel.MaxOutboxSize * 3; i++)
+            await sut.PublishEventAsync(Constants.ControllerChannel.EventName.Heartbeat, new { });
+
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Never);
+    }
 }

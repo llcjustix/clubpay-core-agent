@@ -23,7 +23,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
 
     private readonly ISessionStore _store;
     private readonly IGrantIdempotencyStore _idempotency;
-    private readonly IControllerChannel _channel;
+    private readonly IConnectionStateProvider _connectionState;
     private readonly IControllerOutbox _outbox;
     private readonly IAgentService _agent;
     private readonly IKioskLockService _kioskLock;
@@ -50,7 +50,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
     public SessionCoordinatorService(
         ISessionStore store,
         IGrantIdempotencyStore idempotency,
-        IControllerChannel channel,
+        IConnectionStateProvider connectionState,
         IControllerOutbox outbox,
         IAgentService agent,
         IKioskLockService kioskLock,
@@ -61,7 +61,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
     {
         _store = store;
         _idempotency = idempotency;
-        _channel = channel;
+        _connectionState = connectionState;
         _outbox = outbox;
         _agent = agent;
         _kioskLock = kioskLock;
@@ -487,10 +487,10 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
 
     internal Task PublishHeartbeatAsync(CancellationToken ct)
     {
-        // _channel is kept only to read live connection health here — event writes go through
-        // _outbox directly (see private PublishEventAsync below), so this is a read, not a cycle-causing
-        // dependency (nothing about Channel's construction depends back on Coordinator or Dispatcher).
-        var isConnected = _channel.ConnectionState == ChannelConnectionState.Connected;
+        // Depends on the narrow IConnectionStateProvider, not the full IControllerChannel — event
+        // writes go through _outbox directly (see private PublishEventAsync below), so Coordinator
+        // never references the transport type at all.
+        var isConnected = _connectionState.ConnectionState == ChannelConnectionState.Connected;
         var wireState = PcStateMapper.ToWireState(State, IsManagerLocked, IsRepairMode, _isAsleep, isConnected);
         _logger.LogInformation("heartbeat yuborildi: external_pc_id={ExternalPcId}, pc_state={PcState}", _agent.ExternalPcId, wireState);
         return PublishEventAsync(Constants.ControllerChannel.EventName.Heartbeat,

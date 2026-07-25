@@ -15,9 +15,8 @@ public enum ChannelConnectionState
 /// has no static IP, so it must always be the one opening the connection). Knows nothing about session
 /// business logic; incoming commands are handed to <see cref="ICommandDispatcher"/>.
 /// </summary>
-public interface IControllerChannel : IAsyncDisposable
+public interface IControllerChannel : IAsyncDisposable, IConnectionStateProvider
 {
-    ChannelConnectionState ConnectionState { get; }
     event Action<ChannelConnectionState>? ConnectionStateChanged;
 
     /// <summary>Assigned once by the composition root after every singleton already exists, so incoming

@@ -68,6 +68,7 @@ public sealed class ControllerChannelIntegrationTests : IAsyncDisposable
         sc.AddSingleton<ISessionCoordinator, SessionCoordinatorService>();
         sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();
         sc.AddSingleton<IControllerChannel, ControllerChannelService>();
+        sc.AddSingleton<IConnectionStateProvider>(sp => sp.GetRequiredService<IControllerChannel>());
         sc.AddLogging();
 
         var provider = sc.BuildServiceProvider();

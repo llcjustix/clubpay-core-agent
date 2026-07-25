@@ -113,7 +113,7 @@ ekanini ko'rsat.
 
 ## P1 — V1 scope'ni yopish (asosiy ish)
 
-### [ ] T4. Arxitektura refactoring: DI siklini yo'q qilish + outbox telemetriya filtri
+### [x] T4. Arxitektura refactoring: DI siklini yo'q qilish + outbox telemetriya filtri
 
 **Muammo (2 ta bog'liq):**
 1. `ControllerChannelService.cs:37-41` — Channel→Dispatcher→Coordinator→Channel DI sikli

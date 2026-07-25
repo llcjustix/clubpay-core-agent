@@ -52,6 +52,7 @@ public partial class App : Application
         sc.AddSingleton<ISessionCoordinator, SessionCoordinatorService>();
         sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();
         sc.AddSingleton<IControllerChannel, ControllerChannelService>();
+        sc.AddSingleton<IConnectionStateProvider>(sp => sp.GetRequiredService<IControllerChannel>());
         sc.AddSingleton<QrCodeService>();
         sc.AddLogging(b => b.AddDebug().AddConsole());
 

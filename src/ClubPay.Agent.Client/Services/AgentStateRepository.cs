@@ -24,6 +24,11 @@ public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly SemaphoreSlim _sendSignal = new(0);
 
+    // Heartbeat/pc_state_changed reflect current state, not history — while offline they must not
+    // accumulate on disk (contract §9: money/session events take priority), so they live only in
+    // memory, keyed by event name (latest wins) and never touch _state/WriteToDiskAsync at all.
+    private readonly Dictionary<string, EventEnvelope> _telemetryPending = new();
+
     private PersistedState _state = new(null, [], []);
     private bool _loaded;
 
@@ -132,30 +137,32 @@ public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore
         var evt = new EventEnvelope(
             Constants.ControllerChannel.MessageType.Event, eventName, "ev_" + Guid.NewGuid().ToString("N"), DateTime.UtcNow, payload);
 
+        var isTelemetry = eventName is Constants.ControllerChannel.EventName.Heartbeat
+            or Constants.ControllerChannel.EventName.PcStateChanged;
+
         await _gate.WaitAsync(ct);
         try
         {
-            await EnsureLoadedAsync(ct);
-
-            // Telemetry (heartbeat/pc_state_changed) reflects current state, not history — while offline
-            // it must not accumulate on disk (contract §9: money/session events take priority), so only
-            // the latest pending instance per type is kept. Money/session events are never coalesced.
-            var isTelemetry = eventName is Constants.ControllerChannel.EventName.Heartbeat
-                or Constants.ControllerChannel.EventName.PcStateChanged;
-            var outbox = isTelemetry
-                ? _state.Outbox.FindAll(e => e.Name != eventName)
-                : new List<EventEnvelope>(_state.Outbox);
-            outbox.Add(evt);
-
-            if (outbox.Count > Constants.ControllerChannel.MaxOutboxSize)
+            if (isTelemetry)
             {
-                _logger.LogWarning(
-                    "Outbox hajmi limitdan oshdi: {Count}/{Max} — pul/sessiya eventlari yo'qotilmaydi, tekshiring",
-                    outbox.Count, Constants.ControllerChannel.MaxOutboxSize);
+                // In-memory only — never persisted, so offline telemetry never touches disk at all.
+                _telemetryPending[eventName] = evt;
             }
+            else
+            {
+                await EnsureLoadedAsync(ct);
 
-            _state = _state with { Outbox = outbox };
-            await WriteToDiskAsync(ct);
+                var outbox = new List<EventEnvelope>(_state.Outbox) { evt };
+                if (outbox.Count > Constants.ControllerChannel.MaxOutboxSize)
+                {
+                    _logger.LogWarning(
+                        "Outbox hajmi limitdan oshdi: {Count}/{Max} — pul/sessiya eventlari yo'qotilmaydi, tekshiring",
+                        outbox.Count, Constants.ControllerChannel.MaxOutboxSize);
+                }
+
+                _state = _state with { Outbox = outbox };
+                await WriteToDiskAsync(ct);
+            }
         }
         finally
         {
@@ -187,7 +194,9 @@ public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore
         try
         {
             await EnsureLoadedAsync(ct);
-            return _state.Outbox.ToList();
+            var pending = new List<EventEnvelope>(_state.Outbox);
+            pending.AddRange(_telemetryPending.Values);
+            return pending;
         }
         finally
         {
@@ -201,9 +210,18 @@ public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore
         try
         {
             await EnsureLoadedAsync(ct);
-            var outbox = _state.Outbox.FindAll(e => e.EventId != eventId);
-            _state = _state with { Outbox = outbox };
-            await WriteToDiskAsync(ct);
+
+            if (_state.Outbox.Exists(e => e.EventId == eventId))
+            {
+                var outbox = _state.Outbox.FindAll(e => e.EventId != eventId);
+                _state = _state with { Outbox = outbox };
+                await WriteToDiskAsync(ct);
+                return;
+            }
+
+            var telemetryKey = _telemetryPending.FirstOrDefault(kv => kv.Value.EventId == eventId).Key;
+            if (telemetryKey is not null)
+                _telemetryPending.Remove(telemetryKey);
         }
         finally
         {

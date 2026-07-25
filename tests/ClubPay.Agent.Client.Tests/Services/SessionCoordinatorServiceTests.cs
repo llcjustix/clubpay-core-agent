@@ -18,7 +18,7 @@ public class SessionCoordinatorServiceTests
     {
         public Mock<ISessionStore> Store { get; } = new();
         public Mock<IGrantIdempotencyStore> Idempotency { get; } = new();
-        public Mock<IControllerChannel> Channel { get; } = new();
+        public Mock<IConnectionStateProvider> ConnectionState { get; } = new();
         public Mock<IControllerOutbox> Outbox { get; } = new();
         public Mock<IAgentService> Agent { get; } = new();
         public Mock<IKioskLockService> KioskLock { get; } = new();
@@ -38,7 +38,7 @@ public class SessionCoordinatorServiceTests
         }
 
         public SessionCoordinatorService BuildSut() => new(
-            Store.Object, Idempotency.Object, Channel.Object, Outbox.Object, Agent.Object,
+            Store.Object, Idempotency.Object, ConnectionState.Object, Outbox.Object, Agent.Object,
             KioskLock.Object, ProcessCleanup.Object, Idle.Object, Clock.Object,
             NullLogger<SessionCoordinatorService>.Instance);
     }
@@ -279,7 +279,7 @@ public class SessionCoordinatorServiceTests
     public async Task PublishHeartbeatAsync_WhenChannelConnected_ReportsControllerSeenAndReachable()
     {
         var m = new Mocks();
-        m.Channel.SetupGet(c => c.ConnectionState).Returns(ChannelConnectionState.Connected);
+        m.ConnectionState.SetupGet(c => c.ConnectionState).Returns(ChannelConnectionState.Connected);
         var sut = m.BuildSut();
 
         await sut.PublishHeartbeatAsync(CancellationToken.None);
@@ -294,7 +294,7 @@ public class SessionCoordinatorServiceTests
     public async Task PublishHeartbeatAsync_WhenChannelDisconnected_ReportsZeroControllersAndUnreachable()
     {
         var m = new Mocks();
-        m.Channel.SetupGet(c => c.ConnectionState).Returns(ChannelConnectionState.Disconnected);
+        m.ConnectionState.SetupGet(c => c.ConnectionState).Returns(ChannelConnectionState.Disconnected);
         var sut = m.BuildSut();
 
         await sut.PublishHeartbeatAsync(CancellationToken.None);
