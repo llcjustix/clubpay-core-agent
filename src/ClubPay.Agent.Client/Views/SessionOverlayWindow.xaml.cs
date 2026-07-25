@@ -35,6 +35,6 @@ public partial class SessionOverlayWindow : Window
     {
         var area = SystemParameters.WorkArea;
         Left = area.Right - Width - 20;
-        Top  = area.Top  + 20;
+        Top = area.Top + 20;
     }
 }

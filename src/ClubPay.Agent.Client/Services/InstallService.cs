@@ -17,12 +17,12 @@ namespace ClubPay.Agent.Client.Services;
 /// </summary>
 public static class InstallService
 {
-    public const string InstallDir   = @"C:\ClubPay\Agent";
-    public const string ExeName      = "ClubPay.Agent.Client.exe";
+    public const string InstallDir = @"C:\ClubPay\Agent";
+    public const string ExeName = "ClubPay.Agent.Client.exe";
 
-    private const string RunKeyPath   = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+    private const string RunKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "ClubPayAgent";
-    private const string WinlogonKey  = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
+    private const string WinlogonKey = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
 
     public static bool IsElevated =>
         new WindowsPrincipal(WindowsIdentity.GetCurrent())
@@ -32,9 +32,9 @@ public static class InstallService
     {
         Process.Start(new ProcessStartInfo
         {
-            FileName        = Environment.ProcessPath!,
-            Arguments       = string.Join(" ", args),
-            Verb            = "runas",         // UAC prompt
+            FileName = Environment.ProcessPath!,
+            Arguments = string.Join(" ", args),
+            Verb = "runas",         // UAC prompt
             UseShellExecute = true
         });
     }
@@ -56,7 +56,7 @@ public static class InstallService
 
         foreach (var src in Directory.EnumerateFiles(srcDir, "*", SearchOption.AllDirectories))
         {
-            var rel  = Path.GetRelativePath(srcDir, src);
+            var rel = Path.GetRelativePath(srcDir, src);
             var dest = Path.Combine(InstallDir, rel);
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
             File.Copy(src, dest, overwrite: true);
@@ -110,9 +110,9 @@ public static class InstallService
     {
         using var wl = Registry.LocalMachine.OpenSubKey(WinlogonKey, writable: true)
                     ?? throw new InvalidOperationException("Winlogon key not accessible");
-        wl.SetValue("AutoAdminLogon",    "1");
-        wl.SetValue("DefaultUserName",   username);
-        wl.SetValue("DefaultPassword",   password);
+        wl.SetValue("AutoAdminLogon", "1");
+        wl.SetValue("DefaultUserName", username);
+        wl.SetValue("DefaultPassword", password);
         wl.SetValue("DefaultDomainName", Environment.MachineName);
     }
 
@@ -136,11 +136,11 @@ public static class InstallService
 
         string? shell;
         string? autoLoginUser;
-        bool    autoLoginEnabled;
+        bool autoLoginEnabled;
         using (var wl = Registry.LocalMachine.OpenSubKey(WinlogonKey))
         {
-            shell            = wl?.GetValue("Shell") as string ?? "explorer.exe";
-            autoLoginUser    = wl?.GetValue("DefaultUserName") as string;
+            shell = wl?.GetValue("Shell") as string ?? "explorer.exe";
+            autoLoginUser = wl?.GetValue("DefaultUserName") as string;
             autoLoginEnabled = (wl?.GetValue("AutoAdminLogon") as string) == "1";
         }
 
@@ -154,8 +154,8 @@ public static class InstallService
 }
 
 public record InstallStatus(
-    bool   FilesInstalled,
-    bool   StartupRegistered,
-    bool   ShellReplaced,
-    bool   AutoLoginEnabled,
+    bool FilesInstalled,
+    bool StartupRegistered,
+    bool ShellReplaced,
+    bool AutoLoginEnabled,
     string? AutoLoginUser);

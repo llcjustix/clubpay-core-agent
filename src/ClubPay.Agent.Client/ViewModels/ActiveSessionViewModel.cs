@@ -37,10 +37,13 @@ public partial class ActiveSessionViewModel : ObservableObject
     [ObservableProperty] private bool _isToastVisible;
     [ObservableProperty] private bool _isBannerVisible;
 
+    public string ClubName { get; }
+
     public ActiveSessionViewModel(QrCodeService qr, IAgentService agent)
     {
         _qr = qr;
         _agent = agent;
+        ClubName = agent.ClubName;
         _timer = new DispatcherTimer(DispatcherPriority.Normal)
         { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => RefreshTime(DateTime.UtcNow);

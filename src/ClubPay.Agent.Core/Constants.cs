@@ -15,9 +15,7 @@ public static class Constants
     public static class Money
     {
         public const long TiyinPerSom = 100;
-        public static long SomToTiyin(decimal som) => (long)(som * TiyinPerSom);
-        public static decimal TiyinToSom(long tiyin) => tiyin / (decimal)TiyinPerSom;
-        public static string FormatSom(long tiyin) => $"{TiyinToSom(tiyin):N0} so'm";
+        public static string FormatSom(long tiyin) => MoneyFormatter.Format(tiyin);
     }
 
     public static class PcId
@@ -88,6 +86,7 @@ public static class Constants
             public const string CommandFailed = "command_failed";
             public const string TimeLow = "time_low";
             public const string Heartbeat = "heartbeat";
+            public const string ManagerUnlock = "manager_unlock"; // ТЗ §7/§11 audit — contract extension
         }
 
         public const int HeartbeatIntervalSeconds = 30;

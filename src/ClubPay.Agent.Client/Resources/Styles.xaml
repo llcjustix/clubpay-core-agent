@@ -5,8 +5,8 @@
   <!-- App-wide converter instances -->
   <cv:BoolToVisibilityConverter    x:Key="BoolVis"/>
   <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
-  <cv:TimerToBrushConverter        x:Key="TimerBrushGlobal"/>
-  <cv:TiyinToSomConverter          x:Key="TiyinSom"/>
+  <cv:InverseBooleanConverter      x:Key="InvBool"/>
+  <cv:TimerToBrushConverter        x:Key="TimerBrush"/>
 
   <!-- Extra brushes referenced in views -->
   <SolidColorBrush x:Key="CyanSoftBrush"  Color="#FF9FE6FF"/>

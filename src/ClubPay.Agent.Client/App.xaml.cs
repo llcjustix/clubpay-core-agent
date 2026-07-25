@@ -28,7 +28,7 @@ public partial class App : Application
         // ── Normal kiosk startup ──────────────────────────────────────────────
         var config = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
-            //.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
             .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false)
             .Build();
 
@@ -51,6 +51,8 @@ public partial class App : Application
         sc.AddSingleton<ISystemClock, SystemClock>();
         sc.AddSingleton<ISessionCoordinator, SessionCoordinatorService>();
         sc.AddSingleton<IVoucherService, VoucherService>();
+        sc.AddSingleton<IManagerCodeService, ManagerCodeService>();
+        sc.AddSingleton<ILockCodeService, LockCodeService>();
         sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();
         sc.AddSingleton<IControllerChannel, ControllerChannelService>();
         sc.AddSingleton<IConnectionStateProvider>(sp => sp.GetRequiredService<IControllerChannel>());

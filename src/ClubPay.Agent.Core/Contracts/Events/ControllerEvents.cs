@@ -38,6 +38,16 @@ public sealed record SessionEndedEvent(
 /// <summary>Contract §5.3 time_low.</summary>
 public sealed record TimeLowEvent(string CoreSessionId, int RemainingSeconds, int Threshold);
 
+/// <summary>ТЗ §7/§11 audit trail for a manager master-code acceptance on the LockScreen. Not yet part
+/// of the numbered contract — a wire-contract extension the Controller may log or ignore until it
+/// consumes it. Action is "unlock" (cleared a manager lock) or "start_session" (opened an idle PC).</summary>
+public sealed record ManagerUnlockEvent(
+    string ExternalPcId,
+    string CodeId,
+    string ManagerId,
+    string Action,
+    DateTime AtUtc);
+
 /// <summary>Contract §5.4 pc_state_changed.</summary>
 public sealed record PcStateChangedEvent(string ExternalPcId, PcState PcState, bool Online);
 

@@ -53,8 +53,8 @@ public sealed class VoucherService : IVoucherService
         byte[] payloadBytes, signatureBytes;
         try
         {
-            payloadBytes = Base64UrlDecode(parts[0]);
-            signatureBytes = Base64UrlDecode(parts[1]);
+            payloadBytes = Base64Url.Decode(parts[0]);
+            signatureBytes = Base64Url.Decode(parts[1]);
         }
         catch (FormatException)
         {
@@ -149,16 +149,5 @@ public sealed class VoucherService : IVoucherService
             logger.LogError(ex, "Voucher:PublicKeyBase64 import qilib bo'lmadi — vaucherlar rad etiladi");
             return null;
         }
-    }
-
-    private static byte[] Base64UrlDecode(string value)
-    {
-        var s = value.Replace('-', '+').Replace('_', '/');
-        switch (s.Length % 4)
-        {
-            case 2: s += "=="; break;
-            case 3: s += "="; break;
-        }
-        return Convert.FromBase64String(s);
     }
 }

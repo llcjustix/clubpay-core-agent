@@ -8,8 +8,7 @@ public record Tariff(
     long PriceTiyin
 )
 {
-    public decimal PriceSom => PriceTiyin / 100m;
-    public string PriceLabel => $"{PriceSom:N0} so'm";
+    public string PriceLabel => MoneyFormatter.Format(PriceTiyin);
 
     public string DurationLabel => DurationMinutes switch
     {

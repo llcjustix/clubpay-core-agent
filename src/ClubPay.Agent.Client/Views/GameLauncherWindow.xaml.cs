@@ -10,38 +10,67 @@ public partial class GameLauncherWindow : Window
 
     internal GameLauncherViewModel Vm => (GameLauncherViewModel)DataContext;
 
-    // Tracks whether the shell is currently open because the hotkey summoned it mid-game — kept
-    // separate from ordinary Show()/Hide() (e.g. at session start) so ToggleShell() knows whether
-    // to open or close, and so a fresh game/return always starts from a known closed state.
-    private bool _shellOpenViaHotkey;
-
     public GameLauncherWindow(GameLauncherViewModel vm, IKioskLockService kioskLock)
     {
-        Instance    = this;
+        Instance = this;
         DataContext = vm;
         InitializeComponent();
 
-        // Game launched → hide launcher, show return button in overlay
-        vm.AppLaunched += _ => Dispatcher.Invoke(() =>
-        {
-            Hide();
-            _shellOpenViaHotkey = false;
-            SessionOverlayWindow.Instance?.ShowReturnButton();
-        });
+        // Fires on first launch AND when the already-running app's own tile is re-clicked
+        // (GameLauncherViewModel.LaunchApp) — both cases mean "get the shell out of the way and
+        // surface the running app", so both route through the same method.
+        vm.AppLaunched += _ => Dispatcher.Invoke(HideShellForRunningApp);
 
-        // Game exited or user clicked "return" → show launcher again
-        vm.ReturnRequested += () => Dispatcher.Invoke(() =>
-        {
-            SessionOverlayWindow.Instance?.HideReturnButton();
-            _shellOpenViaHotkey = false;
-            Topmost = false;
-            Show();
-            Activate();
-        });
+        // Fires when the app fully exits, or the user explicitly clicked "return to launcher" —
+        // both cases mean "show the tile grid".
+        vm.ReturnRequested += () => Dispatcher.Invoke(() => ShowShell());
 
         // Ctrl+Shift+F9 while a game is running → peek at the shell (tile grid + full session
         // sidebar) without minimizing the game (ТЗ §22 "по горячей клавише, не мешает игре").
         kioskLock.ShellToggleRequested += () => Dispatcher.Invoke(ToggleShell);
+    }
+
+    /// <summary>Called by KioskWindow when the session becomes Active — including resuming from
+    /// Frozen after a successful extend, where a game may already be running (KillRunningApp is
+    /// never called on Frozen→Active, only on the transition to Locked). If a game is running we
+    /// must NOT pop the tile-grid shell over it — ТЗ §7 requires resuming "с того же кадра", not
+    /// interrupting play with the launcher. Only when nothing is running do we show the grid.</summary>
+    public void ResumeForActiveSession()
+    {
+        if (Vm.IsAppRunning)
+            HideShellForRunningApp();
+        else
+            ShowShell();
+    }
+
+    /// <summary>Called by KioskWindow when entering Locked or Frozen — hides the shell/return
+    /// affordance entirely (no game should be reachable from here).</summary>
+    public void EnterFullScreenOverlay()
+    {
+        Hide();
+        SessionOverlayWindow.Instance?.HideReturnButton();
+    }
+
+    /// <summary>Shows the tile-grid shell. This window's own IsVisible is the single source of
+    /// truth for "is the shell currently on screen" — no separate tracking flag (a prior version
+    /// tracked hotkey-open state in a bool that could desync from the other show/hide paths,
+    /// leaving the shell unreachable after a freeze or a "return to launcher" click).</summary>
+    private void ShowShell(bool topmost = false)
+    {
+        Topmost = topmost;
+        Show();
+        Activate();
+        SessionOverlayWindow.Instance?.HideReturnButton();
+    }
+
+    /// <summary>Hides the shell and brings whatever is running back to the foreground (real game
+    /// window may not be the process we started directly — see GameLauncherViewModel.LaunchApp's
+    /// Steam-handoff handling). Also re-arms the corner "return to launcher" button.</summary>
+    private void HideShellForRunningApp()
+    {
+        Hide();
+        Vm.BringRunningAppToForeground();
+        SessionOverlayWindow.Instance?.ShowReturnButton();
     }
 
     private void ToggleShell()
@@ -49,18 +78,10 @@ public partial class GameLauncherWindow : Window
         if (!Vm.IsAppRunning)
             return; // no game running — the launcher is already the primary UI, nothing to toggle
 
-        if (_shellOpenViaHotkey)
-        {
-            Hide();
-            Topmost = false;
-        }
+        if (IsVisible)
+            HideShellForRunningApp();
         else
-        {
-            Topmost = true;
-            Show();
-            Activate();
-        }
-        _shellOpenViaHotkey = !_shellOpenViaHotkey;
+            ShowShell(topmost: true);
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)

@@ -1,13 +1,6 @@
 <UserControl x:Class="ClubPay.Agent.Client.Views.ActiveSessionCornerView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:cv="clr-namespace:ClubPay.Agent.Client.Converters">
-
-  <UserControl.Resources>
-    <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
-    <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
-    <cv:TimerToBrushConverter            x:Key="TimerBrush"/>
-  </UserControl.Resources>
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
   <!-- Passive, always-on corner widget (ТЗ §22 "не мешает игре"): normally just a small static
        time readout — no card, no logo, no animation, no permanent QR. The full session card lives

@@ -23,7 +23,7 @@ public sealed class KioskLockService : IKioskLockService
     public void Install()
     {
         ApplyRegistry(enable: true);
-        _hookProc   = HookCallback;
+        _hookProc = HookCallback;
         _hookHandle = NativeKiosk.SetWindowsHookEx(
             NativeKiosk.WH_KEYBOARD_LL,
             _hookProc,
@@ -37,7 +37,7 @@ public sealed class KioskLockService : IKioskLockService
         {
             NativeKiosk.UnhookWindowsHookEx(_hookHandle);
             _hookHandle = nint.Zero;
-            _hookProc   = null;
+            _hookProc = null;
         }
         ApplyRegistry(enable: false);
     }
@@ -48,11 +48,11 @@ public sealed class KioskLockService : IKioskLockService
     {
         if (nCode >= 0)
         {
-            var kb   = Marshal.PtrToStructure<NativeKiosk.KBDLLHOOKSTRUCT>(lParam);
-            bool alt  = (NativeKiosk.GetKeyState(NativeKiosk.VK_MENU)    & 0x8000) != 0;
+            var kb = Marshal.PtrToStructure<NativeKiosk.KBDLLHOOKSTRUCT>(lParam);
+            bool alt = (NativeKiosk.GetKeyState(NativeKiosk.VK_MENU) & 0x8000) != 0;
             bool ctrl = (NativeKiosk.GetKeyState(NativeKiosk.VK_CONTROL) & 0x8000) != 0;
-            bool shft = (NativeKiosk.GetKeyState(NativeKiosk.VK_SHIFT)   & 0x8000) != 0;
-            var  mode = _mode;
+            bool shft = (NativeKiosk.GetKeyState(NativeKiosk.VK_SHIFT) & 0x8000) != 0;
+            var mode = _mode;
 
             if (TryHandleShellHotkey(kb.vkCode, (int)wParam, ctrl, shft, mode))
                 return -1;
@@ -60,14 +60,14 @@ public sealed class KioskLockService : IKioskLockService
             bool block = kb.vkCode switch
             {
                 // Always blocked — regardless of mode
-                NativeKiosk.VK_LWIN                          => true,
-                NativeKiosk.VK_RWIN                          => true,
-                NativeKiosk.VK_ESCAPE when ctrl && shft      => true, // Ctrl+Shift+Esc (Task Mgr)
-                NativeKiosk.VK_DELETE when ctrl && alt        => true, // Ctrl+Alt+Del (UI level)
+                NativeKiosk.VK_LWIN => true,
+                NativeKiosk.VK_RWIN => true,
+                NativeKiosk.VK_ESCAPE when ctrl && shft => true, // Ctrl+Shift+Esc (Task Mgr)
+                NativeKiosk.VK_DELETE when ctrl && alt => true, // Ctrl+Alt+Del (UI level)
 
                 // Blocked only in Full mode (Locked/Frozen) — allowed during Active session
-                NativeKiosk.VK_F4     when alt && mode == KioskLockMode.Full => true,
-                NativeKiosk.VK_TAB    when alt && mode == KioskLockMode.Full => true,
+                NativeKiosk.VK_F4 when alt && mode == KioskLockMode.Full => true,
+                NativeKiosk.VK_TAB when alt && mode == KioskLockMode.Full => true,
                 NativeKiosk.VK_ESCAPE when alt && mode == KioskLockMode.Full => true,
 
                 _ => false

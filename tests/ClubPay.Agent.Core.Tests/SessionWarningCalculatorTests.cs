@@ -15,9 +15,23 @@ public class SessionWarningCalculatorTests
     }
 
     [Fact]
-    public void ShouldShowToast_WhenSentinelPreviousValue_ReturnsFalse()
+    public void ShouldShowToast_FirstTickAlreadyUnderFiveMinutes_ReturnsTrue()
     {
-        Assert.False(SessionWarningCalculator.ShouldShowToast(previousRemainingSeconds: -1, currentRemainingSeconds: 250));
+        // ТЗ §7: a session that starts or is recovered with ≤5 min left still gets its one toast —
+        // the -1 "no prior tick" sentinel counts as above-threshold.
+        Assert.True(SessionWarningCalculator.ShouldShowToast(previousRemainingSeconds: -1, currentRemainingSeconds: 250));
+    }
+
+    [Fact]
+    public void ShouldShowToast_FirstTickAboveFiveMinutes_ReturnsFalse()
+    {
+        Assert.False(SessionWarningCalculator.ShouldShowToast(previousRemainingSeconds: -1, currentRemainingSeconds: 301));
+    }
+
+    [Fact]
+    public void ShouldShowToast_FirstTickAtZero_ReturnsFalse()
+    {
+        Assert.False(SessionWarningCalculator.ShouldShowToast(previousRemainingSeconds: -1, currentRemainingSeconds: 0));
     }
 
     [Fact]
