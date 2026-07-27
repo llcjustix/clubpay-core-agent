@@ -1,7 +1,9 @@
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using ClubPay.Agent.Core;
 
 namespace ClubPay.Agent.Client.Converters;
@@ -62,4 +64,24 @@ public sealed class TimerToBrushConverter : IValueConverter
         brush.Freeze();
         return brush;
     }
+}
+
+/// <summary>LauncherApp.IconPath is often "" (no icon configured). Binding an empty string directly to
+/// Image.Source makes WPF's ImageSourceConverter throw NotSupportedException on every realize — this
+/// converter short-circuits that by returning null for missing/unreadable paths.</summary>
+[ValueConversion(typeof(string), typeof(ImageSource))]
+public sealed class IconPathToImageSourceConverter : IValueConverter
+{
+    public object? Convert(object value, Type _, object __, CultureInfo ___)
+    {
+        if (value is not string path || string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return null;
+        }
+
+        return new BitmapImage(new Uri(path, UriKind.Absolute));
+    }
+
+    public object ConvertBack(object value, Type _, object __, CultureInfo ___) =>
+        throw new NotSupportedException();
 }

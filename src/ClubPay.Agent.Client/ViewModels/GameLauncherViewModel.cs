@@ -106,7 +106,11 @@ public partial class GameLauncherViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    // AllowConcurrentExecutions: this method awaits the app-closed poll loop for as long as the app
+    // stays open, so by default AsyncRelayCommand would report CanExecute()==false (and the tile's
+    // MouseBinding would silently ignore clicks) for that entire time. Re-entrant calls are safe —
+    // the IsAppRunning/RunningApp guard below handles them (same tile => foreground, different => error).
+    [RelayCommand(AllowConcurrentExecutions = true)]
     public async Task LaunchApp(LauncherApp app)
     {
         Debug.Assert(

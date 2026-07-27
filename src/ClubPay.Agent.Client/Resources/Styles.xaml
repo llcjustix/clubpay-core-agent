@@ -7,6 +7,7 @@
   <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
   <cv:InverseBooleanConverter      x:Key="InvBool"/>
   <cv:TimerToBrushConverter        x:Key="TimerBrush"/>
+  <cv:IconPathToImageSourceConverter x:Key="IconPathToImage"/>
 
   <!-- Extra brushes referenced in views -->
   <SolidColorBrush x:Key="CyanSoftBrush"  Color="#FF9FE6FF"/>

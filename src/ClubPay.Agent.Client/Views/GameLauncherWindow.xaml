@@ -124,7 +124,7 @@
                     <Border Width="68" Height="68" CornerRadius="14" ClipToBounds="True"
                             Visibility="{Binding HasIcon, Converter={StaticResource BoolVis}}"
                             HorizontalAlignment="Center">
-                      <Image Source="{Binding IconPath}" Stretch="UniformToFill"/>
+                      <Image Source="{Binding IconPath, Converter={StaticResource IconPathToImage}}" Stretch="UniformToFill"/>
                     </Border>
                     <Border Width="68" Height="68" CornerRadius="14"
                             Background="#1400D4FF" HorizontalAlignment="Center"
