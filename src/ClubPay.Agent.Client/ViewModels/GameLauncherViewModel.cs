@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
+using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Configuration;
@@ -33,6 +35,8 @@ public partial class GameLauncherViewModel : ObservableObject
     private readonly ILogger<GameLauncherViewModel> _logger;
     private Process? _currentProcess;
     private IReadOnlySet<int> _launchBaseline = new HashSet<int>();
+    private readonly HashSet<int> _ownedProcessIds = [];
+    private string? _ownedModuleDirectory;
     private CancellationTokenSource? _pollCts;
     private CancellationTokenSource? _errorCts;
 
@@ -56,22 +60,59 @@ public partial class GameLauncherViewModel : ObservableObject
         PcId = agent.PcId;
 
         var section = config.GetSection("Launcher:Apps");
+        var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in section.GetChildren())
         {
+            var type = ParseAppType(item["Type"]);
+            int? steamAppId = int.TryParse(item["SteamAppId"], out var parsedSteamAppId)
+                ? parsedSteamAppId
+                : null;
+            var processNames = item.GetSection("ProcessNames").GetChildren()
+                .Select(x => x.Value)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var configuredArgs = item["Args"] ?? "";
+            var args = type == LauncherAppType.SteamGame
+                ? RemoveLegacySteamLaunchArgument(configuredArgs)
+                : configuredArgs;
+            if (type == LauncherAppType.SteamGame && !string.Equals(configuredArgs, args, StringComparison.Ordinal))
+                _logger.LogWarning("Launcher profile {ProfileName} uses legacy -applaunch arguments; SteamAppId is authoritative", item["Name"]);
+
             var app = new LauncherApp(
                 Name: item["Name"] ?? "?",
                 ExePath: item["ExePath"] ?? "",
-                Args: item["Args"] ?? "",
+                Args: args,
                 IconPath: item["IconPath"] ?? "",
-                Category: item["Category"] ?? "O'yin");
-            if (!string.IsNullOrEmpty(app.ExePath))
-                Apps.Add(app);
+                Category: item["Category"] ?? "O'yin",
+                Id: item["Id"] ?? "",
+                Type: type,
+                SteamAppId: steamAppId,
+                WorkingDirectory: item["WorkingDirectory"] ?? "",
+                ProcessNames: processNames);
+
+            if (!IsValidProfile(app))
+            {
+                _logger.LogWarning("Ignoring invalid launcher profile {ProfileName}", app.Name);
+                continue;
+            }
+            if (!seenIds.Add(app.StableId))
+            {
+                _logger.LogWarning("Ignoring launcher profile {ProfileName} with duplicate Id {StableId}", app.Name, app.StableId);
+                continue;
+            }
+            Apps.Add(app);
         }
     }
 
     [RelayCommand]
     public async Task LaunchApp(LauncherApp app)
     {
+        Debug.Assert(
+            System.Windows.Application.Current?.Dispatcher.CheckAccess() ?? true,
+            "GameLauncherViewModel accessed off the UI dispatcher thread");
+
         if (IsAppRunning)
         {
             if (RunningApp == app)
@@ -81,14 +122,21 @@ public partial class GameLauncherViewModel : ObservableObject
             return;
         }
 
-        var psi = new ProcessStartInfo
+        var processNames = app.ProcessNames ?? new HashSet<string>();
+        var moduleDirectory = app.Type == LauncherAppType.SteamGame ? null : Path.GetDirectoryName(app.ExePath);
+
+        if (app.Type == LauncherAppType.Browser && processNames.Count > 0
+            && TryAdoptRunningInstance(app, processNames, moduleDirectory, out var adoptTask))
         {
-            FileName = app.ExePath,
-            Arguments = app.Args,
-            UseShellExecute = true
-        };
+            await adoptTask;
+            return;
+        }
+
+        var psi = CreateStartInfo(app);
 
         _launchBaseline = _processCleanup.SnapshotProcessIds();
+        _ownedModuleDirectory = moduleDirectory;
+        _ownedProcessIds.Clear();
 
         Process? proc;
         try
@@ -103,44 +151,92 @@ public partial class GameLauncherViewModel : ObservableObject
         }
 
         _currentProcess = proc;
+        if (proc is not null)
+            _ownedProcessIds.Add(proc.Id);
         RunningApp = app;
         IsAppRunning = true;
         AppLaunched(app);  // signal to hide launcher window
 
-        _pollCts?.Cancel();
+        await RunPollLoopAndFinishAsync(proc, processNames);
+    }
+
+    /// <summary>Single-instance handoff (e.g. Chrome): a fresh Process.Start would just forward the
+    /// command line to the already-running instance via IPC and exit almost immediately, and PID-diff
+    /// would never see a "new" process since the real one predates our baseline — so if one is already
+    /// running we adopt it directly instead of relaunching. Returns false (nothing to await) when no
+    /// running instance was found, so the caller falls through to a normal launch.</summary>
+    private bool TryAdoptRunningInstance(
+        LauncherApp app, IReadOnlySet<string> processNames, string? moduleDirectory, out Task adoptTask)
+    {
+        var existingPids = _processCleanup.GetProcessIdsStartedAfterBaseline(new HashSet<int>(), processNames, moduleDirectory);
+        if (existingPids.Count == 0)
+        {
+            adoptTask = Task.CompletedTask;
+            return false;
+        }
+
+        _launchBaseline = _processCleanup.SnapshotProcessIds();
+        _ownedModuleDirectory = moduleDirectory;
+        _ownedProcessIds.Clear();
+        foreach (var pid in existingPids)
+            _ownedProcessIds.Add(pid);
+
+        _currentProcess = null;
+        RunningApp = app;
+        IsAppRunning = true;
+        AppLaunched(app);
+
+        adoptTask = RunPollLoopAndFinishAsync(initialProcess: null, processNames);
+        return true;
+    }
+
+    /// <summary>Runs the close-detection poll loop to completion, then resets running-app state.
+    /// <see cref="ReturnRequested"/> only fires when the wait ended because the app was genuinely
+    /// closed — not when it was externally cancelled (KillRunningApp, or superseded by a new
+    /// LaunchApp call), since whichever caller cancelled the token already owns the UI transition.</summary>
+    private async Task RunPollLoopAndFinishAsync(Process? initialProcess, IReadOnlySet<string> processNames)
+    {
+        CancelAndDispose(ref _pollCts);
         var pollCts = new CancellationTokenSource();
         _pollCts = pollCts;
-        await WaitUntilAppClosedAsync(proc, pollCts.Token);
+
+        var closedNaturally = await WaitUntilAppClosedAsync(initialProcess, processNames, pollCts.Token);
+
+        if (ReferenceEquals(_pollCts, pollCts))
+            CancelAndDispose(ref _pollCts);
+        else
+            pollCts.Dispose(); // already superseded by a newer LaunchApp/adoption call
 
         _currentProcess = null;
         RunningApp = null;
         IsAppRunning = false;
-        ReturnRequested?.Invoke(); // game (and any handed-off child process) exited → show launcher again
+        if (closedNaturally)
+            ReturnRequested?.Invoke(); // game (and any handed-off child process) exited → show launcher again
     }
 
-    /// <summary>Waits for the directly-started process to exit, then keeps polling the process-diff
-    /// against <see cref="_launchBaseline"/> until nothing foreign remains for two consecutive
-    /// checks (debounces the brief gap while a launcher like Steam hands off to the real game).</summary>
-    private async Task WaitUntilAppClosedAsync(Process? initialProcess, CancellationToken ct)
+    /// <summary>Tracks the starter process and only process names declared by the active profile.
+    /// Two consecutive empty checks debounce the brief gap while Steam hands off to the real game.
+    /// Returns true if the app was found to be genuinely closed, false if the wait was cancelled
+    /// externally (kill or supersede) before that could be determined.</summary>
+    private async Task<bool> WaitUntilAppClosedAsync(
+        Process? initialProcess,
+        IReadOnlySet<string> allowedProcessNames,
+        CancellationToken ct)
     {
-        try
-        {
-            if (initialProcess is not null)
-                await initialProcess.WaitForExitAsync(ct);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-
         var consecutiveEmpty = 0;
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                var foreign = _processCleanup.GetForeignProcessIds(_launchBaseline);
-                consecutiveEmpty = foreign.Count == 0 ? consecutiveEmpty + 1 : 0;
-                if (consecutiveEmpty >= RequiredConsecutiveEmptyPolls) return;
+                foreach (var pid in _processCleanup.GetProcessIdsStartedAfterBaseline(_launchBaseline, allowedProcessNames, _ownedModuleDirectory))
+                    _ownedProcessIds.Add(pid);
+
+                bool initialStillRunning = initialProcess is not null && !initialProcess.HasExited;
+                var runningOwned = _ownedProcessIds.Where(IsProcessRunning).ToArray();
+                consecutiveEmpty = !initialStillRunning && runningOwned.Length == 0
+                    ? consecutiveEmpty + 1
+                    : 0;
+                if (consecutiveEmpty >= RequiredConsecutiveEmptyPolls) return true;
             }
             catch (Exception ex)
             {
@@ -153,14 +249,20 @@ public partial class GameLauncherViewModel : ObservableObject
             }
             catch (OperationCanceledException)
             {
-                return;
+                return false;
             }
         }
+
+        return false;
     }
 
     [RelayCommand]
     public void ReturnToLauncher()
     {
+        Debug.Assert(
+            System.Windows.Application.Current?.Dispatcher.CheckAccess() ?? true,
+            "GameLauncherViewModel accessed off the UI dispatcher thread");
+
         // Minimise whatever the launch handed off to (real game window may not be _currentProcess
         // itself — see WaitUntilAppClosedAsync) so the launcher appears in front.
         ForEachRunningWindow(hwnd => NativeLauncher.ShowWindow(hwnd, NativeLauncher.SW_MINIMIZE));
@@ -172,6 +274,10 @@ public partial class GameLauncherViewModel : ObservableObject
     /// resumed from Frozen while a game is still open). Safe to call with nothing running yet.</summary>
     public void BringRunningAppToForeground()
     {
+        Debug.Assert(
+            System.Windows.Application.Current?.Dispatcher.CheckAccess() ?? true,
+            "GameLauncherViewModel accessed off the UI dispatcher thread");
+
         ForEachRunningWindow(hwnd =>
         {
             NativeLauncher.ShowWindow(hwnd, NativeLauncher.SW_RESTORE);
@@ -181,7 +287,7 @@ public partial class GameLauncherViewModel : ObservableObject
 
     private void ForEachRunningWindow(Action<nint> action)
     {
-        foreach (var pid in _processCleanup.GetForeignProcessIds(_launchBaseline))
+        foreach (var pid in GetRunningOwnedProcessIds())
         {
             try
             {
@@ -195,34 +301,109 @@ public partial class GameLauncherViewModel : ObservableObject
 
     public void KillRunningApp()
     {
-        _pollCts?.Cancel();
-        _errorCts?.Cancel();
+        Debug.Assert(
+            System.Windows.Application.Current?.Dispatcher.CheckAccess() ?? true,
+            "GameLauncherViewModel accessed off the UI dispatcher thread");
+
+        CancelAndDispose(ref _pollCts);
+        CancelAndDispose(ref _errorCts);
         IsLaunchErrorVisible = false;
-        try { _currentProcess?.Kill(entireProcessTree: true); }
-        catch { }
+        _processCleanup.KillProcesses(GetRunningOwnedProcessIds());
         _currentProcess = null;
         RunningApp = null;
         IsAppRunning = false;
     }
 
+    /// <summary>Cancels then disposes a CancellationTokenSource field and nulls it out in one
+    /// synchronous step, so any later `field?.Cancel()` against the (now-null) field is a safe
+    /// no-op instead of an ObjectDisposedException.</summary>
+    private static void CancelAndDispose(ref CancellationTokenSource? field)
+    {
+        field?.Cancel();
+        field?.Dispose();
+        field = null;
+    }
+
+    private static bool IsValidProfile(LauncherApp app) =>
+        app.Type switch
+        {
+            LauncherAppType.SteamGame => !string.IsNullOrWhiteSpace(app.ExePath)
+                && app.SteamAppId is > 0
+                && app.ProcessNames is { Count: > 0 },
+            _ => !string.IsNullOrWhiteSpace(app.ExePath),
+        };
+
+    private static LauncherAppType ParseAppType(string? value) =>
+        Enum.TryParse<LauncherAppType>(value, ignoreCase: true, out var type)
+            ? type
+            : LauncherAppType.Executable;
+
+    private static ProcessStartInfo CreateStartInfo(LauncherApp app)
+    {
+        var args = app.Type == LauncherAppType.SteamGame
+            ? $"-applaunch {app.SteamAppId} {app.Args}".Trim()
+            : app.Args;
+
+        return new ProcessStartInfo
+        {
+            FileName = app.ExePath,
+            Arguments = args,
+            WorkingDirectory = string.IsNullOrWhiteSpace(app.WorkingDirectory)
+                ? Path.GetDirectoryName(app.ExePath) ?? ""
+                : app.WorkingDirectory,
+            UseShellExecute = true,
+        };
+    }
+
+    private static string RemoveLegacySteamLaunchArgument(string args) =>
+        Regex.Replace(args, @"(?<!\S)-applaunch\s+\d+(?!\S)", "", RegexOptions.IgnoreCase).Trim();
+
+    private IReadOnlyCollection<int> GetRunningOwnedProcessIds()
+    {
+        foreach (var pid in _processCleanup.GetProcessIdsStartedAfterBaseline(
+                     _launchBaseline,
+                     RunningApp?.ProcessNames ?? new HashSet<string>(),
+                     _ownedModuleDirectory))
+            _ownedProcessIds.Add(pid);
+
+        return _ownedProcessIds.Where(IsProcessRunning).ToArray();
+    }
+
+    private static bool IsProcessRunning(int pid)
+    {
+        try
+        {
+            using var proc = Process.GetProcessById(pid);
+            return !proc.HasExited;
+        }
+        catch { return false; }
+    }
+
     private void ShowLaunchError(string message)
     {
-        _errorCts?.Cancel();
+        CancelAndDispose(ref _errorCts);
         var cts = new CancellationTokenSource();
         _errorCts = cts;
         LaunchErrorMessage = message;
         IsLaunchErrorVisible = true;
-        _ = HideLaunchErrorAfterDelay(cts.Token);
+        _ = HideLaunchErrorAfterDelay(cts);
     }
 
-    private async Task HideLaunchErrorAfterDelay(CancellationToken ct)
+    private async Task HideLaunchErrorAfterDelay(CancellationTokenSource cts)
     {
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(LaunchErrorVisibleSeconds), ct);
+            await Task.Delay(TimeSpan.FromSeconds(LaunchErrorVisibleSeconds), cts.Token);
             IsLaunchErrorVisible = false;
         }
         catch (OperationCanceledException) { }
+        finally
+        {
+            if (ReferenceEquals(_errorCts, cts))
+                CancelAndDispose(ref _errorCts);
+            else
+                cts.Dispose(); // already superseded by a newer ShowLaunchError call
+        }
     }
 }
 

@@ -47,7 +47,6 @@ public partial class KioskWindow : Window
         if (Vm.IsActive)
         {
             Hide();
-            SessionOverlayWindow.Instance?.Show();
             GameLauncherWindow.Instance?.ResumeForActiveSession();
         }
         else

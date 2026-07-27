@@ -26,7 +26,7 @@ Har bir vazifa **alohida Claude Code sessiyasida** bajariladi. Vazifa ichidagi
 
 ## P0 — E2E testdan oldin (blocker'lar)
 
-### [ ] T1. Uzaytirish QR bug'i: lokal GUID o'rniga CoreSessionId + yagona QR domen
+### [x] T1. Uzaytirish QR bug'i: lokal GUID o'rniga CoreSessionId + yagona QR domen
 
 **Muammo:** `MainViewModel.cs:80` freeze QR'ga `CurrentSession.Id` (agentning ichki
 GUID'i) beradi; `ActiveSessionViewModel.cs:60` ham `session.Id` ishlatadi. Billing esa
@@ -56,7 +56,7 @@ alohida testlanadigan joyga chiqar va unit test yoz. Oxirida dotnet build (0 war
 va dotnet test o'tishini tasdiqla.
 ```
 
-### [ ] T2. `command_failed` eventi + heartbeat'dagi real qiymatlar
+### [x] T2. `command_failed` eventi + heartbeat'dagi real qiymatlar
 
 **Muammo:** kontrakt §5.0 bo'yicha `command_failed` eventi bor, lekin agent uni hech
 qachon yubormaydi (`CommandDispatcherService` xatoni faqat `command_result`da
@@ -87,7 +87,7 @@ ehtiyot bo'l: coordinator kanalga allaqachon bog'langan, yangi bog'liqlik kiritm
 Ikkala o'zgarishga unit test yoz. dotnet build (0 warning) va dotnet test o'tsin.
 ```
 
-### [ ] T3. Integration testlarni tuzatish (URL-ACL muammosi)
+### [x] T3. Integration testlarni tuzatish (URL-ACL muammosi)
 
 **Muammo:** `tests/ClubPay.Agent.TestHarness/FakeControllerServer.cs:42` HttpListener'ni
 `http://+:{port}/` prefiksi bilan ochadi — Windows'da bu admin huquq / `netsh urlacl`
@@ -185,7 +185,7 @@ qil — testlarda haqiqiy Ed25519 juftlik bilan imzolangan namunalar kerak. Meth
 Scenario_ExpectedResult uslubida to'liq test to'plami yoz. Reja tasdiqlangach bajar.
 ```
 
-### [ ] T6. LockScreen'ga yagona kod-kiritish maydoni + menejer master-kodi (ТЗ §7)
+### [x] T6. LockScreen'ga yagona kod-kiritish maydoni + menejer master-kodi (ТЗ §7)
 
 **Muammo:** ТЗ §7: "Видимая подсказка «Нажмите Enter, чтобы ввести код». Единое поле
 для клиентского ваучера и мастер-кода менеджера (агент распознаёт тип)". Hozir

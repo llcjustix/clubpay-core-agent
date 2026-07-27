@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using ClubPay.Agent.Core;
@@ -30,6 +31,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
     private readonly IProcessCleanupService _processCleanup;
     private readonly IIdleDetectionService _idle;
     private readonly ISystemClock _clock;
+    private readonly IConfiguration _config;
     private readonly ILogger<SessionCoordinatorService> _logger;
 
     private readonly SemaphoreSlim _stateLock = new(1, 1);
@@ -57,6 +59,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         IProcessCleanupService processCleanup,
         IIdleDetectionService idle,
         ISystemClock clock,
+        IConfiguration config,
         ILogger<SessionCoordinatorService> logger)
     {
         _store = store;
@@ -68,6 +71,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         _processCleanup = processCleanup;
         _idle = idle;
         _clock = clock;
+        _config = config;
         _logger = logger;
 
         _idle.IdleThresholdReached += OnIdleThresholdReached;
@@ -80,9 +84,13 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         if (CurrentSession is { } session && session.EndsAtUtc is { } endsAt && _clock.UtcNow >= endsAt)
         {
             // Expired while the agent was down/asleep — end it locally before anything else connects.
+            // GameLauncherViewModel's owned-PID tracking is empty at this point (fresh process, never
+            // launched anything in this lifetime), so it is the only place that can still recover
+            // whatever game/app the previous agent instance left running.
             await _stateLock.WaitAsync(ct);
             try
             {
+                RecoverOrphanLauncherProcesses();
                 await EndSessionCoreAsync(session, EndReason.TimeUp, ct);
             }
             finally
@@ -102,6 +110,32 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         _ticker = new Timer(OnTick, null, 1000, 1000);
     }
+
+    /// <summary>Kills any process left running by a session that expired while this agent process was
+    /// down (crash/restart). There is no trustworthy PID-diff baseline for this cold-start case, so
+    /// this only ever targets processes whose name is explicitly declared in a Launcher:Apps profile —
+    /// never arbitrary software — matching the same trust model live launches already use.</summary>
+    private void RecoverOrphanLauncherProcesses()
+    {
+        var names = GetAllLauncherProcessNames();
+        if (names.Count == 0)
+            return;
+
+        var orphanPids = _processCleanup.GetProcessIdsStartedAfterBaseline(new HashSet<int>(), names);
+        if (orphanPids.Count == 0)
+            return;
+
+        _logger.LogWarning("Oldingi seansdan qolgan {Count} ta jarayon topildi va yopildi", orphanPids.Count);
+        _processCleanup.KillProcesses(orphanPids);
+    }
+
+    private HashSet<string> GetAllLauncherProcessNames() =>
+        _config.GetSection("Launcher:Apps").GetChildren()
+            .SelectMany(item => item.GetSection("ProcessNames").GetChildren())
+            .Select(x => x.Value)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     public async Task<(StartSessionResult Result, bool IsDuplicate)> StartSessionAsync(StartSessionPayload payload, CancellationToken ct = default)
     {
@@ -128,8 +162,17 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
                 Guid.NewGuid(), payload.ExternalPcId, tariff, payload.StartAt ?? now, payload.GrantedSeconds,
                 CoreSessionId: coreSessionId, GrantId: payload.GrantId, EndsAtUtc: payload.EndsAt, Zone: payload.Zone);
 
-            await _store.SaveAsync(session, ct);
-            await _idempotency.RecordAppliedAsync(payload.GrantId, ct);
+            var startedPayload = new SessionStartedEvent(coreSessionId.ToString("N"), payload.ExternalPcId, payload.GrantId, payload.PaymentOrderId, session.StartedAtUtc);
+            var persistedEvent = CreateEvent(Constants.ControllerChannel.EventName.SessionStarted, startedPayload);
+            var atomicStore = _store as IAtomicAgentStateStore;
+            var atomicallyQueued = atomicStore is not null;
+            if (atomicallyQueued)
+                await atomicStore!.CommitStartAsync(session, payload.GrantId, persistedEvent, ct);
+            else
+            {
+                await _store.SaveAsync(session, ct);
+                await _idempotency.RecordAppliedAsync(payload.GrantId, ct);
+            }
 
             CurrentSession = session;
             State = AgentState.Active;
@@ -139,8 +182,8 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
             _processCleanup.SnapshotBaseline();
 
             var coreIdText = coreSessionId.ToString("N");
-            await PublishEventAsync(Constants.ControllerChannel.EventName.SessionStarted,
-                new SessionStartedEvent(coreIdText, payload.ExternalPcId, payload.GrantId, payload.PaymentOrderId, session.StartedAtUtc), ct);
+            if (!atomicallyQueued)
+                await PublishEventAsync(Constants.ControllerChannel.EventName.SessionStarted, startedPayload, ct);
             await PublishPcStateChangedAsync(ct);
             RaiseStateChanged();
 
@@ -178,8 +221,17 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
                 EndsAtUtc = newEndsAt,
             };
 
-            await _store.SaveAsync(updated, ct);
-            await _idempotency.RecordAppliedAsync(payload.GrantId, ct);
+            var extendedPayload = new SessionExtendedEvent(payload.CoreSessionId, _agent.ExternalPcId, payload.GrantId, payload.AddedSeconds, newEndsAt);
+            var persistedEvent = CreateEvent(Constants.ControllerChannel.EventName.SessionExtended, extendedPayload);
+            var atomicStore = _store as IAtomicAgentStateStore;
+            var atomicallyQueued = atomicStore is not null;
+            if (atomicallyQueued)
+                await atomicStore!.CommitExtendAsync(updated, payload.GrantId, persistedEvent, ct);
+            else
+            {
+                await _store.SaveAsync(updated, ct);
+                await _idempotency.RecordAppliedAsync(payload.GrantId, ct);
+            }
             CurrentSession = updated;
             _firedThresholds.Clear();
 
@@ -192,8 +244,8 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
                 _kioskLock.SetMode(KioskLockMode.Session);
             }
 
-            await PublishEventAsync(Constants.ControllerChannel.EventName.SessionExtended,
-                new SessionExtendedEvent(payload.CoreSessionId, _agent.ExternalPcId, payload.GrantId, payload.AddedSeconds, newEndsAt), ct);
+            if (!atomicallyQueued)
+                await PublishEventAsync(Constants.ControllerChannel.EventName.SessionExtended, extendedPayload, ct);
             await PublishPcStateChangedAsync(ct);
             RaiseStateChanged();
 
@@ -332,9 +384,19 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         int consumed = session.ElapsedSeconds(now);
         int remaining = session.RemainingSeconds(now);
 
-        _processCleanup.KillSessionProcesses();
+        // Do not kill every process that appeared during a session: that PID-diff has no reliable
+        // ownership relationship to the launched game. MainViewModel terminates the launcher's
+        // explicitly tracked process IDs when it observes the Locked transition.
         _kioskLock.SetMode(KioskLockMode.Full);
-        await _store.ClearAsync(ct);
+        var coreIdText = session.CoreSessionId?.ToString("N") ?? session.Id.ToString("N");
+        var endedPayload = new SessionEndedEvent(coreIdText, _agent.ExternalPcId, reason, consumed, remaining);
+        var persistedEvent = CreateEvent(Constants.ControllerChannel.EventName.SessionEnded, endedPayload);
+        var atomicStore = _store as IAtomicAgentStateStore;
+        var atomicallyQueued = atomicStore is not null;
+        if (atomicallyQueued)
+            await atomicStore!.CommitEndAsync(persistedEvent, ct);
+        else
+            await _store.ClearAsync(ct);
 
         CurrentSession = null;
         FrozenUntilUtc = null;
@@ -342,9 +404,8 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         _firedThresholds.Clear();
         _idle.Start();
 
-        var coreIdText = session.CoreSessionId?.ToString("N") ?? session.Id.ToString("N");
-        await PublishEventAsync(Constants.ControllerChannel.EventName.SessionEnded,
-            new SessionEndedEvent(coreIdText, _agent.ExternalPcId, reason, consumed, remaining), ct);
+        if (!atomicallyQueued)
+            await PublishEventAsync(Constants.ControllerChannel.EventName.SessionEnded, endedPayload, ct);
         await PublishPcStateChangedAsync(ct);
         RaiseStateChanged();
 
@@ -515,6 +576,9 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
             _logger.LogWarning(ex, "{Event} hodisasini yuborib bo'lmadi", name);
         }
     }
+
+    private static EventEnvelope CreateEvent(string name, object payload) =>
+        new(Constants.ControllerChannel.MessageType.Event, name, "ev_" + Guid.NewGuid().ToString("N"), DateTime.UtcNow, payload);
 
     private void RaiseStateChanged()
     {

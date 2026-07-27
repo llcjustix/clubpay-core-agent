@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using System.Text.Json;
 using ClubPay.Agent.Client.Services;
 using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Contracts;
@@ -278,5 +279,57 @@ public class AgentStateRepositoryTests : IDisposable
                 It.IsAny<Exception?>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task LoadAsync_WhenLegacyJsonExists_MigratesStateAndKeepsBackup()
+    {
+        Directory.CreateDirectory(_dataDir);
+        var legacy = new
+        {
+            Session = MakeSession(),
+            AppliedGrantIds = new[] { new { GrantId = "grant_legacy", AppliedAtUtc = DateTime.UtcNow } },
+            Outbox = new[] { new EventEnvelope("event", "session_started", "ev_legacy", DateTime.UtcNow, new { }) },
+        };
+        await File.WriteAllTextAsync(Path.Combine(_dataDir, "agent-state.json"), JsonSerializer.Serialize(legacy, ControllerJsonOptions.Default));
+
+        var sut = BuildSut();
+        var session = await sut.LoadAsync();
+
+        Assert.NotNull(session);
+        Assert.True(await sut.HasAppliedAsync("grant_legacy"));
+        Assert.Contains((await sut.GetPendingAsync()), e => e.EventId == "ev_legacy");
+        Assert.True(File.Exists(Path.Combine(_dataDir, "agent-state.db")));
+        Assert.Empty(Directory.GetFiles(_dataDir, "agent-state.json"));
+        Assert.Single(Directory.GetFiles(_dataDir, "agent-state.json.migrated-*.bak"));
+    }
+
+    [Fact]
+    public async Task CommitStartAsync_PersistsSessionGrantAndEventTogether()
+    {
+        var sut = BuildSut();
+        var session = MakeSession();
+        var evt = new EventEnvelope("event", "session_started", "ev_atomic", DateTime.UtcNow, new { });
+
+        await sut.CommitStartAsync(session, "grant_atomic", evt);
+
+        var restarted = BuildSut();
+        var loaded = await restarted.LoadAsync();
+        Assert.Equal(session.Id, loaded!.Id);
+        Assert.True(await restarted.HasAppliedAsync("grant_atomic"));
+        Assert.Contains((await restarted.GetPendingAsync()), e => e.EventId == "ev_atomic");
+    }
+
+    [Fact]
+    public async Task CommitEndAsync_RemovesSessionAndQueuesEndEvent()
+    {
+        var sut = BuildSut();
+        await sut.SaveAsync(MakeSession());
+
+        await sut.CommitEndAsync(new EventEnvelope("event", "session_ended", "ev_end", DateTime.UtcNow, new { }));
+
+        var restarted = BuildSut();
+        Assert.Null(await restarted.LoadAsync());
+        Assert.Contains((await restarted.GetPendingAsync()), e => e.EventId == "ev_end");
     }
 }

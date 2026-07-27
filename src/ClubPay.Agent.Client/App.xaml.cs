@@ -36,7 +36,7 @@ public partial class App : Application
 
         sc.AddSingleton<IConfiguration>(config);
 
-        // AgentStateRepository backs three interfaces from one file — register the concrete type once
+        // AgentStateRepository backs three interfaces from one local SQLite database — register it once.
         // and forward all three to the same instance (three separate AddSingleton<T,TImpl> calls would
         // otherwise create three different instances writing to the same file independently).
         sc.AddSingleton<AgentStateRepository>();

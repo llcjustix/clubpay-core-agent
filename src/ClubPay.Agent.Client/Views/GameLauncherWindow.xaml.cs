@@ -57,10 +57,10 @@ public partial class GameLauncherWindow : Window
     /// leaving the shell unreachable after a freeze or a "return to launcher" click).</summary>
     private void ShowShell(bool topmost = false)
     {
+        SessionOverlayWindow.Instance?.Hide();
         Topmost = topmost;
         Show();
         Activate();
-        SessionOverlayWindow.Instance?.HideReturnButton();
     }
 
     /// <summary>Hides the shell and brings whatever is running back to the foreground (real game
@@ -70,6 +70,7 @@ public partial class GameLauncherWindow : Window
     {
         Hide();
         Vm.BringRunningAppToForeground();
+        SessionOverlayWindow.Instance?.Show();
         SessionOverlayWindow.Instance?.ShowReturnButton();
     }
 

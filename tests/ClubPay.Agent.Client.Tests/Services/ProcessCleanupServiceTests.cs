@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using ClubPay.Agent.Client.Services;
 
 namespace ClubPay.Agent.Client.Tests.Services;
@@ -64,6 +65,46 @@ public class ProcessCleanupServiceTests : IDisposable
     }
 
     [Fact]
+    public void GetProcessIdsStartedAfterBaseline_ReturnsOnlyExplicitlyAllowedProcessName()
+    {
+        var sut = new ProcessCleanupService();
+        var baseline = sut.SnapshotProcessIds();
+        var dummy = SpawnDummy();
+
+        var matching = sut.GetProcessIdsStartedAfterBaseline(baseline, new HashSet<string>(["cmd"]));
+        var nonMatching = sut.GetProcessIdsStartedAfterBaseline(baseline, new HashSet<string>(["not-a-process"]));
+
+        Assert.Contains(dummy.Id, matching);
+        Assert.DoesNotContain(dummy.Id, nonMatching);
+    }
+
+    [Fact]
+    public void GetProcessIdsStartedAfterBaseline_ExpectedModuleDirectoryMatches_ReturnsProcess()
+    {
+        var sut = new ProcessCleanupService();
+        var baseline = sut.SnapshotProcessIds();
+        var dummy = SpawnDummy();
+        var moduleDir = Path.GetDirectoryName(dummy.MainModule!.FileName)!;
+
+        var matching = sut.GetProcessIdsStartedAfterBaseline(baseline, new HashSet<string>(["cmd"]), moduleDir);
+
+        Assert.Contains(dummy.Id, matching);
+    }
+
+    [Fact]
+    public void GetProcessIdsStartedAfterBaseline_ExpectedModuleDirectoryDoesNotMatch_ExcludesProcessEvenIfNameMatches()
+    {
+        var sut = new ProcessCleanupService();
+        var baseline = sut.SnapshotProcessIds();
+        var dummy = SpawnDummy();
+
+        var nonMatching = sut.GetProcessIdsStartedAfterBaseline(
+            baseline, new HashSet<string>(["cmd"]), @"Z:\not-the-real-directory");
+
+        Assert.DoesNotContain(dummy.Id, nonMatching);
+    }
+
+    [Fact]
     public void KillSessionProcesses_KillsProcessStartedAfterSnapshotBaseline()
     {
         var sut = new ProcessCleanupService();
@@ -82,6 +123,17 @@ public class ProcessCleanupServiceTests : IDisposable
         var dummy = SpawnDummy();
         var sut = new ProcessCleanupService();
         sut.SnapshotBaseline(); // dummy already running -> protected
+
+        sut.KillSessionProcesses();
+
+        Assert.False(dummy.HasExited);
+    }
+
+    [Fact]
+    public void KillSessionProcesses_WithoutBaseline_DoesNotKillProcess()
+    {
+        var dummy = SpawnDummy();
+        var sut = new ProcessCleanupService();
 
         sut.KillSessionProcesses();
 

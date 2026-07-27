@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using ClubPay.Agent.Client.Services;
@@ -25,6 +26,7 @@ public class SessionCoordinatorServiceTests
         public Mock<IProcessCleanupService> ProcessCleanup { get; } = new();
         public Mock<IIdleDetectionService> Idle { get; } = new();
         public Mock<ISystemClock> Clock { get; } = new();
+        public IConfiguration Config { get; set; } = new ConfigurationBuilder().Build();
 
         public Mocks()
         {
@@ -39,12 +41,19 @@ public class SessionCoordinatorServiceTests
 
         public SessionCoordinatorService BuildSut() => new(
             Store.Object, Idempotency.Object, ConnectionState.Object, Outbox.Object, Agent.Object,
-            KioskLock.Object, ProcessCleanup.Object, Idle.Object, Clock.Object,
+            KioskLock.Object, ProcessCleanup.Object, Idle.Object, Clock.Object, Config,
             NullLogger<SessionCoordinatorService>.Instance);
     }
 
     private static StartSessionPayload MakeStartPayload(string grantId = "grant_1001") =>
         new("club12-pc07", grantId, PaymentOrderId: null, GrantedSeconds: 3600, EndsAt: Now.AddSeconds(3600), Zone: "Standard", StartAt: Now);
+
+    private static Session MakeExpiredSession() =>
+        new(
+            Guid.NewGuid(), "club12-pc07",
+            new Tariff(Guid.NewGuid(), "Standard", ZoneType.Standard, 60, 0),
+            StartedAtUtc: Now.AddSeconds(-3700), GrantedSeconds: 3600,
+            CoreSessionId: Guid.NewGuid(), GrantId: "grant_expired", EndsAtUtc: Now.AddSeconds(-100), Zone: "Standard");
 
     [Fact]
     public async Task StartSessionAsync_WhenRepairModeOn_ThrowsPcInRepair()
@@ -169,7 +178,7 @@ public class SessionCoordinatorServiceTests
         Assert.Equal(AgentState.Locked, sut.State);
         Assert.Null(sut.CurrentSession);
         m.Outbox.Verify(o => o.PublishEventAsync("session_ended", It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
-        m.ProcessCleanup.Verify(p => p.KillSessionProcesses(), Times.Once);
+        m.ProcessCleanup.Verify(p => p.KillSessionProcesses(), Times.Never);
         Assert.Equal(3600, result.RemainingSeconds);
         Assert.Equal(0, result.ConsumedSeconds);
     }
@@ -303,5 +312,64 @@ public class SessionCoordinatorServiceTests
             "heartbeat",
             It.Is<object>(p => ((HeartbeatEvent)p).ControllersSeen == 0 && !((HeartbeatEvent)p).ServerReachable),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task StartAsync_SessionExpiredWhileDown_KillsProcessesMatchingConfiguredLauncherProcessNames()
+    {
+        var m = new Mocks();
+        m.Config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Launcher:Apps:0:ProcessNames:0"] = "cs2",
+            })
+            .Build();
+        m.Store.SetupGet(s => s.Current).Returns(MakeExpiredSession());
+        m.ProcessCleanup
+            .Setup(p => p.GetProcessIdsStartedAfterBaseline(
+                It.IsAny<IReadOnlySet<int>>(),
+                It.Is<IReadOnlySet<string>>(n => n.Contains("cs2")),
+                It.IsAny<string?>()))
+            .Returns(new List<int> { 4242 });
+        var sut = m.BuildSut();
+
+        await sut.StartAsync();
+
+        m.ProcessCleanup.Verify(
+            p => p.KillProcesses(It.Is<IReadOnlyCollection<int>>(ids => ids.Contains(4242))),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task StartAsync_SessionExpiredWhileDown_NoLauncherProcessNamesConfigured_DoesNotCallKillProcesses()
+    {
+        var m = new Mocks();
+        m.Store.SetupGet(s => s.Current).Returns(MakeExpiredSession());
+        var sut = m.BuildSut();
+
+        await sut.StartAsync();
+
+        m.ProcessCleanup.Verify(p => p.KillProcesses(It.IsAny<IReadOnlyCollection<int>>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task StartAsync_SessionNotExpired_DoesNotRunOrphanRecoverySweep()
+    {
+        var m = new Mocks();
+        m.Config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Launcher:Apps:0:ProcessNames:0"] = "cs2",
+            })
+            .Build();
+        var activeSession = MakeExpiredSession() with { EndsAtUtc = Now.AddSeconds(3600) };
+        m.Store.SetupGet(s => s.Current).Returns(activeSession);
+        var sut = m.BuildSut();
+
+        await sut.StartAsync();
+
+        m.ProcessCleanup.Verify(
+            p => p.GetProcessIdsStartedAfterBaseline(It.IsAny<IReadOnlySet<int>>(), It.IsAny<IReadOnlySet<string>>(), It.IsAny<string?>()),
+            Times.Never);
     }
 }
