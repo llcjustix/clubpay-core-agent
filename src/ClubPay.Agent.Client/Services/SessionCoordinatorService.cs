@@ -143,7 +143,13 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         {
             var current = CurrentSession;
             var existingId = current?.CoreSessionId?.ToString("N") ?? payload.GrantId;
-            return (new StartSessionResult(existingId, current?.RemainingSeconds(_clock.UtcNow) ?? 0), true);
+            return (new StartSessionResult(
+                existingId,
+                current?.RemainingSeconds(_clock.UtcNow) ?? 0,
+                payload.ExternalPcId,
+                payload.GrantId,
+                current?.StartedAtUtc ?? payload.StartAt ?? _clock.UtcNow,
+                current?.EndsAtUtc ?? payload.EndsAt), true);
         }
 
         await _stateLock.WaitAsync(ct);
@@ -160,7 +166,8 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
             var tariff = new Tariff(coreSessionId, payload.Zone ?? "Standard", zone, payload.GrantedSeconds / 60, 0);
             var session = new Session(
                 Guid.NewGuid(), payload.ExternalPcId, tariff, payload.StartAt ?? now, payload.GrantedSeconds,
-                CoreSessionId: coreSessionId, GrantId: payload.GrantId, EndsAtUtc: payload.EndsAt, Zone: payload.Zone);
+                CoreSessionId: coreSessionId, GrantId: payload.GrantId, EndsAtUtc: payload.EndsAt, Zone: payload.Zone,
+                ExtendUrl: payload.ExtendUrl);
 
             var startedPayload = new SessionStartedEvent(coreSessionId.ToString("N"), payload.ExternalPcId, payload.GrantId, payload.PaymentOrderId, session.StartedAtUtc);
             var persistedEvent = CreateEvent(Constants.ControllerChannel.EventName.SessionStarted, startedPayload);
@@ -187,7 +194,13 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
             await PublishPcStateChangedAsync(ct);
             RaiseStateChanged();
 
-            return (new StartSessionResult(coreIdText, session.RemainingSeconds(now)), false);
+            return (new StartSessionResult(
+                coreIdText,
+                session.RemainingSeconds(now),
+                payload.ExternalPcId,
+                payload.GrantId,
+                session.StartedAtUtc,
+                session.EndsAtUtc), false);
         }
         finally
         {
@@ -198,7 +211,11 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
     public async Task<(ExtendSessionResult Result, bool IsDuplicate)> ExtendSessionAsync(ExtendSessionPayload payload, CancellationToken ct = default)
     {
         if (await _idempotency.HasAppliedAsync(payload.GrantId, ct))
-            return (new ExtendSessionResult(CurrentSession?.RemainingSeconds(_clock.UtcNow) ?? 0), true);
+            return (new ExtendSessionResult(
+                CurrentSession?.RemainingSeconds(_clock.UtcNow) ?? 0,
+                payload.CoreSessionId,
+                payload.GrantId,
+                CurrentSession?.EndsAtUtc ?? _clock.UtcNow), true);
 
         await _stateLock.WaitAsync(ct);
         try
@@ -249,7 +266,11 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
             await PublishPcStateChangedAsync(ct);
             RaiseStateChanged();
 
-            return (new ExtendSessionResult(updated.RemainingSeconds(now)), false);
+            return (new ExtendSessionResult(
+                updated.RemainingSeconds(now),
+                payload.CoreSessionId,
+                payload.GrantId,
+                newEndsAt), false);
         }
         finally
         {

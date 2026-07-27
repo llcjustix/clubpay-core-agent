@@ -11,7 +11,8 @@ public sealed record StartSessionPayload(
     int GrantedSeconds,
     DateTime EndsAt,
     string? Zone,
-    DateTime? StartAt);
+    DateTime? StartAt,
+    string? ExtendUrl = null);
 
 /// <summary>Contract §4.2 extend_session payload.</summary>
 public sealed record ExtendSessionPayload(

@@ -63,8 +63,9 @@ public partial class ActiveSessionViewModel : ObservableObject
             ZoneLabelUz = ZoneLabelFor(session.Tariff.Zone, true);
             TariffLabel = session.Tariff.DurationLabel;
 
-            var extendUrl = QrUrlBuilder.BuildSessionUrl(_agent.PaymentBaseUrl, _agent.ExternalPcId, session.CoreSessionId, session.Id);
-            ExtendQrImage = _qr.Generate(extendUrl, 116);
+            ExtendQrImage = string.IsNullOrWhiteSpace(session.ExtendUrl)
+                ? null
+                : _qr.Generate(session.ExtendUrl, 116);
         }
 
         RefreshTime(DateTime.UtcNow);
@@ -78,6 +79,7 @@ public partial class ActiveSessionViewModel : ObservableObject
         _session = null;
         _previousRemainingSeconds = -1;
         _toastTicksRemaining = 0;
+        ExtendQrImage = null;
         IsAnyWarningVisible = false;
         IsSoft10Visible = false;
         IsToastVisible = false;

@@ -80,6 +80,7 @@ async Task RunCommandAsync(string cmd, string[] parts)
                     ends_at = DateTime.UtcNow.AddSeconds(seconds),
                     zone = "Standard",
                     start_at = DateTime.UtcNow,
+                    extend_url = "https://clubpay.justix.uz/qr/se_" + Guid.NewGuid().ToString("N")[..12],
                 });
                 return;
             }

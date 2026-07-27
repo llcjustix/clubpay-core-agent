@@ -3,7 +3,6 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Models;
-using ClubPay.Agent.Core.Services;
 using ClubPay.Agent.Client.Services;
 
 namespace ClubPay.Agent.Client.ViewModels;
@@ -16,7 +15,6 @@ namespace ClubPay.Agent.Client.ViewModels;
 public partial class FreezeViewModel : ObservableObject
 {
     private readonly QrCodeService _qr;
-    private readonly IAgentService _agent;
     private readonly DispatcherTimer _timer;
     private DateTime _untilUtc;
 
@@ -26,10 +24,9 @@ public partial class FreezeViewModel : ObservableObject
 
     [ObservableProperty] private BitmapImage? _extendQrImage;
 
-    public FreezeViewModel(QrCodeService qr, IAgentService agent)
+    public FreezeViewModel(QrCodeService qr)
     {
         _qr = qr;
-        _agent = agent;
         _timer = new DispatcherTimer(DispatcherPriority.Normal)
         { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => Refresh();
@@ -41,14 +38,19 @@ public partial class FreezeViewModel : ObservableObject
     {
         _untilUtc = untilUtc;
 
-        var extendUrl = QrUrlBuilder.BuildSessionUrl(_agent.PaymentBaseUrl, _agent.ExternalPcId, session?.CoreSessionId, session?.Id);
-        ExtendQrImage = _qr.Generate(extendUrl, 320);
+        ExtendQrImage = string.IsNullOrWhiteSpace(session?.ExtendUrl)
+            ? null
+            : _qr.Generate(session.ExtendUrl, 320);
 
         Refresh();
         _timer.Start();
     }
 
-    public void Stop() => _timer.Stop();
+    public void Stop()
+    {
+        _timer.Stop();
+        ExtendQrImage = null;
+    }
 
     private void Refresh()
     {

@@ -26,6 +26,7 @@ public sealed class CommandDispatcherService(
         try
         {
             logger.LogInformation("Buyruq qabul qilindi: {Name} ({CommandId})", command.Name, command.CommandId);
+            logger.LogInformation($"Command: {JsonSerializer.Serialize(command)}");
 
             return command.Name switch
             {
@@ -63,6 +64,9 @@ public sealed class CommandDispatcherService(
     private async Task<CommandResultEnvelope> HandleStartAsync(CommandEnvelope command, CancellationToken ct)
     {
         var payload = Deserialize<StartSessionPayload>(command);
+        if (string.IsNullOrWhiteSpace(payload.ExtendUrl))
+            logger.LogError("Integratsiya xatosi: start_session buyrug'ida extend_url bo'sh keldi ({CommandId})", command.CommandId);
+
         var (result, isDuplicate) = await coordinator.StartSessionAsync(payload, ct);
         return isDuplicate ? Ok(command, result, ErrorCode.Duplicate) : Ok(command, result);
     }

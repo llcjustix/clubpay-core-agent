@@ -22,6 +22,18 @@ public class SessionTests
         Assert.Null(session.GrantId);
         Assert.Null(session.EndsAtUtc);
         Assert.Null(session.Zone);
+        Assert.Null(session.ExtendUrl);
+    }
+
+    [Fact]
+    public void Constructor_WhenExtendUrlProvided_IsPreserved()
+    {
+        var tariff = new Tariff(Guid.NewGuid(), "1 soat", ZoneType.Standard, 60, 1_500_000);
+        var session = new Session(
+            Guid.NewGuid(), "PC-12", tariff, DateTime.UtcNow, 3600,
+            ExtendUrl: "https://clubpay.justix.uz/qr/se_abc123");
+
+        Assert.Equal("https://clubpay.justix.uz/qr/se_abc123", session.ExtendUrl);
     }
 
     [Fact]

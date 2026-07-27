@@ -33,7 +33,7 @@ public class ManagerCodeServiceTests
             Coordinator.SetupGet(c => c.State).Returns(AgentState.Locked);
             Coordinator
                 .Setup(c => c.StartSessionAsync(It.IsAny<StartSessionPayload>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync((new StartSessionResult("cs_generated", 900), false));
+                .ReturnsAsync((new StartSessionResult("cs_generated", 900, "club12-pc07", "grant_1", Now, Now.AddSeconds(900)), false));
             Idempotency
                 .Setup(i => i.HasAppliedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(false);
@@ -114,7 +114,7 @@ public class ManagerCodeServiceTests
         var m = new Mocks();
         m.Coordinator
             .Setup(c => c.StartSessionAsync(It.IsAny<StartSessionPayload>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((new StartSessionResult("cs_generated", 0), true));
+            .ReturnsAsync((new StartSessionResult("cs_generated", 0, "club12-pc07", "grant_1", Now, Now), true));
         var sut = m.BuildSut();
         var token = ManagerCodeTestTokens.BuildToken(m.KeyPair.SigningKey, MakePayload());
 

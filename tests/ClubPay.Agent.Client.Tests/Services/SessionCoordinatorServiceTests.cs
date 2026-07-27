@@ -45,8 +45,8 @@ public class SessionCoordinatorServiceTests
             NullLogger<SessionCoordinatorService>.Instance);
     }
 
-    private static StartSessionPayload MakeStartPayload(string grantId = "grant_1001") =>
-        new("club12-pc07", grantId, PaymentOrderId: null, GrantedSeconds: 3600, EndsAt: Now.AddSeconds(3600), Zone: "Standard", StartAt: Now);
+    private static StartSessionPayload MakeStartPayload(string grantId = "grant_1001", string? extendUrl = null) =>
+        new("club12-pc07", grantId, PaymentOrderId: null, GrantedSeconds: 3600, EndsAt: Now.AddSeconds(3600), Zone: "Standard", StartAt: Now, ExtendUrl: extendUrl);
 
     private static Session MakeExpiredSession() =>
         new(
@@ -94,6 +94,35 @@ public class SessionCoordinatorServiceTests
         Assert.Equal(AgentState.Active, sut.State);
         m.Outbox.Verify(o => o.PublishEventAsync("session_started", It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
         m.KioskLock.Verify(k => k.SetMode(KioskLockMode.Session), Times.Once);
+    }
+
+    [Fact]
+    public async Task StartSessionAsync_WhenExtendUrlProvided_PersistsOnSessionAndResult()
+    {
+        var m = new Mocks();
+        var sut = m.BuildSut();
+        const string extendUrl = "https://clubpay.justix.uz/qr/se_abc123";
+
+        var (result, _) = await sut.StartSessionAsync(MakeStartPayload(extendUrl: extendUrl));
+
+        Assert.Equal(extendUrl, sut.CurrentSession?.ExtendUrl);
+        Assert.Equal("club12-pc07", result.ExternalPcId);
+        Assert.Equal("grant_1001", result.GrantId);
+        Assert.Equal(Now, result.StartedAt);
+        Assert.Equal(Now.AddSeconds(3600), result.EndsAt);
+    }
+
+    [Fact]
+    public async Task StartSessionAsync_WhenGrantIdAlreadyApplied_ResultReflectsCurrentSession()
+    {
+        var m = new Mocks();
+        m.Idempotency.Setup(i => i.HasAppliedAsync("grant_1001", It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var sut = m.BuildSut();
+
+        var (result, _) = await sut.StartSessionAsync(MakeStartPayload());
+
+        Assert.Equal("club12-pc07", result.ExternalPcId);
+        Assert.Equal("grant_1001", result.GrantId);
     }
 
     [Fact]
@@ -152,6 +181,23 @@ public class SessionCoordinatorServiceTests
         Assert.False(isDuplicate);
         Assert.Equal(65, result.RemainingSeconds);
         Assert.Equal(AgentState.Active, sut.State);
+    }
+
+    [Fact]
+    public async Task ExtendSessionAsync_WhenActiveBeforeExpiry_PreservesExtendUrlAndFillsResultFields()
+    {
+        var m = new Mocks();
+        var sut = m.BuildSut();
+        const string extendUrl = "https://clubpay.justix.uz/qr/se_abc123";
+        await sut.StartSessionAsync(MakeStartPayload(extendUrl: extendUrl));
+
+        m.Clock.SetupGet(c => c.UtcNow).Returns(Now.AddSeconds(100));
+        var (result, _) = await sut.ExtendSessionAsync(new ExtendSessionPayload("cs", "grant_extend", null, 1800));
+
+        Assert.Equal(extendUrl, sut.CurrentSession?.ExtendUrl);
+        Assert.Equal("cs", result.CoreSessionId);
+        Assert.Equal("grant_extend", result.GrantId);
+        Assert.Equal(Now.AddSeconds(100).AddSeconds(result.RemainingSeconds), result.NewEndsAt);
     }
 
     [Fact]

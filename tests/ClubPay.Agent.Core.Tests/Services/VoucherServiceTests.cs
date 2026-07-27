@@ -28,7 +28,7 @@ public class VoucherServiceTests
             Clock.SetupGet(c => c.UtcNow).Returns(Now);
             Coordinator
                 .Setup(c => c.StartSessionAsync(It.IsAny<StartSessionPayload>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync((new StartSessionResult("cs_generated", 900), false));
+                .ReturnsAsync((new StartSessionResult("cs_generated", 900, "club12-pc07", "grant_1", Now, Now.AddSeconds(900)), false));
         }
 
         public VoucherService BuildSut(string? publicKeyBase64OverrideOrOmit = "__default__")
@@ -216,7 +216,7 @@ public class VoucherServiceTests
         var m = new Mocks();
         m.Coordinator
             .Setup(c => c.StartSessionAsync(It.IsAny<StartSessionPayload>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((new StartSessionResult("cs_generated", 0), true));
+            .ReturnsAsync((new StartSessionResult("cs_generated", 0, "club12-pc07", "grant_1", Now, Now), true));
         var sut = m.BuildSut();
         var token = VoucherTestTokens.BuildToken(m.KeyPair.SigningKey, MakePayload());
 

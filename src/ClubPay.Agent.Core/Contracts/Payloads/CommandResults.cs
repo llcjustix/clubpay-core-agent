@@ -4,10 +4,20 @@ namespace ClubPay.Agent.Core.Contracts.Payloads;
 
 /// <summary>Contract §4.1/§7 result — RemainingSeconds is populated on both a fresh start and an
 /// idempotent duplicate replay (grant_id already applied).</summary>
-public sealed record StartSessionResult(string CoreSessionId, int RemainingSeconds);
+public sealed record StartSessionResult(
+    string CoreSessionId,
+    int RemainingSeconds,
+    string ExternalPcId,
+    string GrantId,
+    DateTime StartedAt,
+    DateTime? EndsAt);
 
 /// <summary>Contract §4.2/§7 result.</summary>
-public sealed record ExtendSessionResult(int RemainingSeconds);
+public sealed record ExtendSessionResult(
+    int RemainingSeconds,
+    string CoreSessionId,
+    string GrantId,
+    DateTime NewEndsAt);
 
 /// <summary>Contract §4.3 result.</summary>
 public sealed record EndSessionResult(int ConsumedSeconds, int RemainingSeconds);

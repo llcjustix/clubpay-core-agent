@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using ClubPay.Agent.Client.Services;
@@ -83,5 +85,34 @@ public class CommandDispatcherServiceTests
         Assert.Equal("ok", result.Status);
         m.Channel.Verify(c => c.PublishEventAsync(
             It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DispatchAsync_StartSessionWithMissingExtendUrl_LogsIntegrationError()
+    {
+        var m = new Mocks();
+        var loggerMock = new Mock<ILogger<CommandDispatcherService>>();
+        var now = DateTime.UtcNow;
+        m.Coordinator
+            .Setup(c => c.StartSessionAsync(It.IsAny<StartSessionPayload>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((new StartSessionResult("cs", 3600, "club12-pc07", "grant_1", now, now.AddSeconds(3600)), false));
+        var sut = new CommandDispatcherService(m.Coordinator.Object, m.Channel.Object, m.Agent.Object, loggerMock.Object);
+        var payload = new StartSessionPayload("club12-pc07", "grant_1", null, 3600, now.AddSeconds(3600), "Standard", now, ExtendUrl: null);
+        var command = new CommandEnvelope(
+            Constants.ControllerChannel.MessageType.Command,
+            Constants.ControllerChannel.CommandName.StartSession,
+            "cmd_1",
+            now,
+            JsonSerializer.SerializeToElement(payload, ControllerJsonOptions.Default));
+
+        await sut.DispatchAsync(command);
+
+        loggerMock.Verify(l => l.Log(
+            LogLevel.Error,
+            It.IsAny<EventId>(),
+            It.IsAny<It.IsAnyType>(),
+            It.IsAny<Exception?>(),
+            It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 }
