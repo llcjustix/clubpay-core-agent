@@ -85,6 +85,10 @@ public sealed class ControllerChannelService : IControllerChannel
         try
         {
             await _outbox.PublishEventAsync(eventName, payload, ct);
+            _logger.LogInformation(
+                "Event navbatga qo'yildi: {Event} {Payload}",
+                eventName,
+                JsonSerializer.Serialize(payload, ControllerJsonOptions.Default));
         }
         catch (Exception ex)
         {
@@ -216,6 +220,11 @@ public sealed class ControllerChannelService : IControllerChannel
             var result = await handler(command, ct);
 
             var json = JsonSerializer.SerializeToUtf8Bytes(result, ControllerJsonOptions.Default);
+            _logger.LogInformation(
+                "Command_result yuborildi: {Name} ({CommandId}) {Payload}",
+                name,
+                commandId,
+                JsonSerializer.Serialize(result, ControllerJsonOptions.Default));
             await socket.SendAsync(new ArraySegment<byte>(json), WebSocketMessageType.Text, endOfMessage: true, ct);
         }
         catch (Exception ex)
