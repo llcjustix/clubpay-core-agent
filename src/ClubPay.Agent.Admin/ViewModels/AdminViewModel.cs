@@ -1,13 +1,28 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows.Data;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using ClubPay.Agent.Core;
+using ClubPay.Agent.Core.Contracts.Enums;
+using ClubPay.Agent.Core.Contracts.Payloads;
 using ClubPay.Agent.Core.Models;
+using ClubPay.Agent.Admin.Services.Controller;
 
 namespace ClubPay.Agent.Admin.ViewModels;
 
 public partial class AdminViewModel : ObservableObject
 {
+    private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(Constants.ControllerChannel.SendTimeoutSeconds);
+
+    private readonly IPcStateStore _stateStore;
+    private readonly ControllerHubService _hub;
+    private readonly ILogger<AdminViewModel> _logger;
+    private readonly Dispatcher _dispatcher;
+    private readonly ICollectionView _pcsView;
+
     private readonly DispatcherTimer _clock;
 
     [ObservableProperty] private string _currentTime = DateTime.Now.ToString("HH:mm");
@@ -36,52 +51,61 @@ public partial class AdminViewModel : ObservableObject
     public int SleepCount => Pcs.Count(p => p.Status == PcStatus.Sleeping);
     public int AttentionCount => Pcs.Count(p => p.Status == PcStatus.Attention);
 
-    public AdminViewModel()
+    public CashPaymentViewModel CashPayment { get; }
+
+    public AdminViewModel(
+        IPcRegistry registry,
+        IPcStateStore stateStore,
+        ControllerHubService hub,
+        CashPaymentViewModel cashPayment,
+        ILogger<AdminViewModel> logger)
     {
-        LoadDemoPcs();
+        _stateStore = stateStore;
+        _hub = hub;
+        _logger = logger;
+
+        CashPayment = cashPayment;
+        CashPayment.ConfirmRequested += () => IsCashPaymentVisible = false;
+        CashPayment.CancelRequested += () => IsCashPaymentVisible = false;
+        // Falls back to the calling thread's own dispatcher when no WPF Application is running
+        // (unit tests) — in the real app this is always Application.Current.Dispatcher.
+        _dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
+
+        foreach (var entry in registry.All)
+        {
+            var card = new PcCard { PcId = entry.PcId, ExternalPcId = entry.ExternalPcId, Zone = entry.Zone };
+            var state = _stateStore.Get(entry.ExternalPcId);
+            if (state is not null)
+                PcCardMapper.Apply(card, state);
+            Pcs.Add(card);
+        }
+
+        _pcsView = CollectionViewSource.GetDefaultView(Pcs);
+        _pcsView.Filter = FilterByZone;
+
+        _stateStore.Changed += OnStateChanged;
+        NotifyStatusSummary();
 
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clock.Tick += (_, _) => CurrentTime = DateTime.Now.ToString("HH:mm");
         _clock.Start();
     }
 
-    private void LoadDemoPcs()
+    private bool FilterByZone(object obj) =>
+        ActiveZoneFilter == "Hammasi" || obj is not PcCard card || card.ZoneLabel == ActiveZoneFilter;
+
+    private void OnStateChanged(string externalPcId)
     {
-        var data = new (string id, ZoneType zone, PcStatus status, string time)[]
+        _dispatcher.Invoke(() =>
         {
-            ("PC-01", ZoneType.Standard, PcStatus.Active,    "01:12 qoldi"),
-            ("PC-02", ZoneType.Standard, PcStatus.Active,    "00:34 qoldi"),
-            ("PC-03", ZoneType.Standard, PcStatus.Free,      "Bo'sh"),
-            ("PC-04", ZoneType.Standard, PcStatus.Active,    "02:05 qoldi"),
-            ("PC-05", ZoneType.Standard, PcStatus.Sleeping,  "Uxlayapti"),
-            ("PC-06", ZoneType.Standard, PcStatus.Active,    "00:08 qoldi"),
-            ("PC-07", ZoneType.Standard, PcStatus.Active,    "01:48 qoldi"),
-            ("PC-08", ZoneType.Standard, PcStatus.Free,      "Bo'sh"),
-            ("PC-09", ZoneType.Pro,      PcStatus.Active,    "00:45 qoldi"),
-            ("PC-10", ZoneType.Pro,      PcStatus.Active,    "03:20 qoldi"),
-            ("PC-11", ZoneType.Pro,      PcStatus.Attention, "Diqqat"),
-            ("PC-12", ZoneType.Pro,      PcStatus.Active,    "00:45 qoldi"),
-            ("PC-13", ZoneType.Pro,      PcStatus.Active,    "01:02 qoldi"),
-            ("PC-14", ZoneType.Pro,      PcStatus.Frozen,    "To'lov kutilmoqda"),
-            ("PC-15", ZoneType.Pro,      PcStatus.Active,    "00:25 qoldi"),
-            ("PC-16", ZoneType.Vip,      PcStatus.Active,    "04:10 qoldi"),
-            ("PC-17", ZoneType.Vip,      PcStatus.Active,    "00:55 qoldi"),
-            ("PC-18", ZoneType.Vip,      PcStatus.Free,      "Bo'sh"),
-            ("PC-19", ZoneType.Vip,      PcStatus.Sleeping,  "Uxlayapti"),
-            ("PC-20", ZoneType.Vip,      PcStatus.Active,    "02:38 qoldi"),
-        };
+            var card = Pcs.FirstOrDefault(p => p.ExternalPcId == externalPcId);
+            var state = _stateStore.Get(externalPcId);
+            if (card is null || state is null)
+                return;
 
-        foreach (var (id, zone, status, time) in data)
-            Pcs.Add(new PcCard
-            {
-                PcId = id,
-                Zone = zone,
-                Status = status,
-                StatusText = time,
-                TimeRemaining = time
-            });
-
-        NotifyStatusSummary();
+            PcCardMapper.Apply(card, state);
+            NotifyStatusSummary();
+        });
     }
 
     [RelayCommand]
@@ -91,7 +115,15 @@ public partial class AdminViewModel : ObservableObject
     public void CloseDetail() => SelectedPc = null;
 
     [RelayCommand]
-    public void OpenCashPayment() => IsCashPaymentVisible = true;
+    public void OpenCashPayment()
+    {
+        if (SelectedPc is not { } pc)
+            return;
+
+        CashPayment.ManagerId = AdminName;
+        CashPayment.Load(pc);
+        IsCashPaymentVisible = true;
+    }
 
     [RelayCommand]
     public void CloseCashPayment() => IsCashPaymentVisible = false;
@@ -100,25 +132,52 @@ public partial class AdminViewModel : ObservableObject
     public void SetZoneFilter(string filter)
     {
         ActiveZoneFilter = filter;
-        // TODO: filter Pcs collection
+        _pcsView.Refresh();
     }
 
     [RelayCommand]
-    public async Task WakePcAsync(PcCard pc)
-    {
-        await Task.Delay(100); // placeholder for WoL command
-    }
+    public Task WakePcAsync(PcCard pc) =>
+        SendAsync(pc, Constants.ControllerChannel.CommandName.Wake, new WakePayload(pc.ExternalPcId));
 
     [RelayCommand]
-    public async Task SleepPcAsync(PcCard pc)
-    {
-        await Task.Delay(100); // placeholder for sleep command
-    }
+    public Task SleepPcAsync(PcCard pc) =>
+        SendAsync(pc, Constants.ControllerChannel.CommandName.Sleep, new SleepPayload(pc.ExternalPcId));
+
+    [RelayCommand]
+    public Task LockPcAsync(PcCard pc) =>
+        SendAsync(pc, Constants.ControllerChannel.CommandName.Lock, new LockPayload(pc.ExternalPcId, "manager"));
+
+    [RelayCommand]
+    public Task UnlockPcAsync(PcCard pc) =>
+        SendAsync(pc, Constants.ControllerChannel.CommandName.Unlock, new UnlockPayload(pc.ExternalPcId, "manager"));
+
+    [RelayCommand]
+    public Task SetRepairAsync(PcCard pc) =>
+        SendAsync(pc, Constants.ControllerChannel.CommandName.SetRepair, new SetRepairPayload(pc.ExternalPcId, On: true));
 
     [RelayCommand]
     public async Task EndSessionAsync(PcCard pc)
     {
-        await Task.Delay(100); // placeholder
+        var coreSessionId = _stateStore.Get(pc.ExternalPcId)?.CoreSessionId;
+        if (string.IsNullOrEmpty(coreSessionId))
+        {
+            _logger.LogWarning("EndSession so'ralgan, lekin faol sessiya yo'q: {ExternalPcId}", pc.ExternalPcId);
+            return;
+        }
+
+        await SendAsync(pc, Constants.ControllerChannel.CommandName.EndSession,
+            new EndSessionPayload(coreSessionId, EndReason.Manager));
+    }
+
+    private async Task SendAsync(PcCard pc, string commandName, object payload)
+    {
+        var result = await _hub.SendCommandAsync(pc.ExternalPcId, commandName, payload, CommandTimeout);
+        if (result.Status != "ok")
+        {
+            _logger.LogWarning(
+                "Komanda muvaffaqiyatsiz: {Command} {ExternalPcId} -> {ErrorCode} {Message}",
+                commandName, pc.ExternalPcId, result.ErrorCode, result.Message);
+        }
     }
 
     private void NotifyStatusSummary()

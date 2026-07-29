@@ -1,11 +1,28 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Models;
+using ClubPay.Agent.Core.Services;
 
 namespace ClubPay.Agent.Admin.ViewModels;
 
 public partial class CashPaymentViewModel : ObservableObject
 {
+    private static readonly Dictionary<string, int> TariffDurationSeconds = new()
+    {
+        ["30 daqiqa"] = 30 * 60,
+        ["1 soat"] = 60 * 60,
+        ["2 soat"] = 2 * 60 * 60,
+        ["3 soat"] = 3 * 60 * 60,
+        ["5 soat"] = 5 * 60 * 60,
+    };
+
+    private readonly ICashAuditService _cashAudit;
+    private readonly IManagerPinService _pinService;
+    private readonly ILogger<CashPaymentViewModel> _logger;
+
+    [ObservableProperty] private string _managerId = "unknown";
     [ObservableProperty] private string _pcId = "PC-12";
     [ObservableProperty] private string _zoneLabel = "Pro Zone";
     [ObservableProperty] private string _selectedTariff = "2 soat";
@@ -20,7 +37,14 @@ public partial class CashPaymentViewModel : ObservableObject
     public string[] ReasonCodes { get; } = ["Internet yo'q", "Mijoz iltimosi", "Boshqa"];
     public string[] Tariffs { get; } = ["30 daqiqa", "1 soat", "2 soat", "3 soat", "5 soat"];
 
-    public string AmountLabel => $"{AmountTiyin / 100m:N0} so'm";
+    public string AmountLabel => Constants.Money.FormatSom(AmountTiyin);
+
+    public CashPaymentViewModel(ICashAuditService cashAudit, IManagerPinService pinService, ILogger<CashPaymentViewModel> logger)
+    {
+        _cashAudit = cashAudit;
+        _pinService = pinService;
+        _logger = logger;
+    }
 
     public void Load(PcCard pc)
     {
@@ -45,10 +69,23 @@ public partial class CashPaymentViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void Confirm()
+    public async Task ConfirmAsync()
     {
-        if (PinInput.Length < 4) return;
-        // TODO: verify PIN via admin service
+        if (!_pinService.Verify(PinInput))
+        {
+            _logger.LogWarning("Naqd to'lov rad etildi: noto'g'ri PIN (PC={PcId})", PcId);
+            return;
+        }
+
+        var entry = new CashAuditEntry(
+            ManagerId,
+            PcId,
+            TariffDurationSeconds.GetValueOrDefault(SelectedTariff),
+            AmountTiyin,
+            DateTime.UtcNow,
+            ReasonCode);
+
+        await _cashAudit.RecordAsync(entry);
         ConfirmRequested?.Invoke();
     }
 

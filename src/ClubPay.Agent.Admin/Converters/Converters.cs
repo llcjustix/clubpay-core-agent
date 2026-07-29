@@ -35,7 +35,8 @@ public sealed class PcStatusToBrushConverter : IValueConverter
             PcStatus.Frozen => new SolidColorBrush(Color.FromRgb(0xFF, 0x3B, 0x5C)),
             PcStatus.Free => new SolidColorBrush(Color.FromRgb(0x00, 0xD4, 0xFF)),
             PcStatus.Attention => new SolidColorBrush(Color.FromRgb(0xFF, 0xD6, 0x0A)),
-            _ => new SolidColorBrush(Color.FromRgb(0x6F, 0x77, 0x87)),
+            PcStatus.Repair => new SolidColorBrush(Color.FromRgb(0xFF, 0x8A, 0x00)),
+            _ => new SolidColorBrush(Color.FromRgb(0x6F, 0x77, 0x87)), // Sleeping / Offline
         };
     }
     public object ConvertBack(object v, Type _, object __, CultureInfo ___) =>
@@ -52,6 +53,8 @@ public sealed class PcStatusToTextConverter : IValueConverter
             PcStatus.Frozen => "Muzlatilgan",
             PcStatus.Free => "Bo'sh",
             PcStatus.Attention => "Diqqat",
+            PcStatus.Repair => "Remont",
+            PcStatus.Offline => "Offline",
             _ => "Uxlayapti"
         };
     public object ConvertBack(object v, Type _, object __, CultureInfo ___) =>

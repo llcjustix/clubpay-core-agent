@@ -40,17 +40,6 @@ public static class Constants
         public const string PaymentBaseUrl = "https://clubpay.justix.uz/qr";
     }
 
-    /// <summary>Legacy LAN HTTP endpoint still served by ClubPay.Agent.Admin's AgentEndpointServer
-    /// (pending-session polling) — kept as-is since Admin is out of scope for this phase; the Client no
-    /// longer calls this (see Constants.ControllerChannel for the new WebSocket transport).</summary>
-    public static class Controller
-    {
-        public const int Port = 7474;
-        public const string SecretHeader = "X-Agent-Secret";
-        public const string PendingSessionPath = "/api/agents/{0}/pending-session";  // {0} = pcId
-        public const int StartupCheckMaxRetries = 3;
-    }
-
     /// <summary>Controller channel (outbound WebSocket) — agent-initiated per contract §1.</summary>
     public static class ControllerChannel
     {

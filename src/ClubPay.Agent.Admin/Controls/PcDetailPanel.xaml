@@ -172,7 +172,8 @@
 
           <!-- Sessiyani tugatish -->
           <Border Grid.Column="0" Grid.Row="2" CornerRadius="13" Padding="11,11" Cursor="Hand"
-                  Background="#0DFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1">
+                  Background="#0DFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
+                  MouseLeftButtonUp="OnEndSessionClick">
             <TextBlock Text="Sessiyani tugatish" HorizontalAlignment="Center"
                        Foreground="{StaticResource TextSecondary}"
                        FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="SemiBold"/>
@@ -180,7 +181,8 @@
 
           <!-- Yoqish / Uxlatish -->
           <Border Grid.Column="2" Grid.Row="2" CornerRadius="13" Padding="11,11" Cursor="Hand"
-                  Background="#0DFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1">
+                  Background="#0DFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
+                  MouseLeftButtonUp="OnWakeSleepToggleClick">
             <TextBlock Text="Yoqish / Uxlatish" HorizontalAlignment="Center"
                        Foreground="{StaticResource TextSecondary}"
                        FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="SemiBold"/>

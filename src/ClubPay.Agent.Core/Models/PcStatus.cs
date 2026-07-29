@@ -6,5 +6,7 @@ public enum PcStatus
     Active,
     Frozen,
     Sleeping,
-    Attention
+    Attention,
+    Offline,
+    Repair
 }

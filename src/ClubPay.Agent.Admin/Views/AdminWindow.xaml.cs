@@ -23,6 +23,24 @@ public partial class AdminWindow : Window
             Vm.SelectPcCommand.Execute(pc);
     }
 
+    private void OnPcWakeRequested(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is PcCard pc)
+            Vm.WakePcCommand.Execute(pc);
+    }
+
+    private void OnPcSleepRequested(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is PcCard pc)
+            Vm.SleepPcCommand.Execute(pc);
+    }
+
+    private void OnPcEndRequested(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is PcCard pc)
+            Vm.EndSessionCommand.Execute(pc);
+    }
+
     private void OnZoneFilter(object sender, MouseButtonEventArgs e)
     {
         if (sender is Border b && b.Tag is string tag)

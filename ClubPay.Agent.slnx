@@ -7,6 +7,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/ClubPay.Agent.Core.Tests/ClubPay.Agent.Core.Tests.csproj" />
     <Project Path="tests/ClubPay.Agent.Client.Tests/ClubPay.Agent.Client.Tests.csproj" />
+    <Project Path="tests/ClubPay.Agent.Admin.Tests/ClubPay.Agent.Admin.Tests.csproj" />
     <Project Path="tests/ClubPay.Agent.TestHarness/ClubPay.Agent.TestHarness.csproj" />
   </Folder>
   <Folder Name="/tools/">

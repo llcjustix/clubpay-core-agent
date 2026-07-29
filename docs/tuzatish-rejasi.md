@@ -217,7 +217,7 @@ outbox'ga yozilsin. ViewModel faqat UI holati — tekshirish servislarda. Unit t
 bilan. dotnet build/test yashil bo'lsin.
 ```
 
-### [ ] T7. Naqd to'lov audit logi (Admin, ТЗ §11)
+### [x] T7. Naqd to'lov audit logi (Admin, ТЗ §11) — 2026-07-29 bajarildi
 
 **Muammo:** `CashPaymentViewModel`da `ILogger` yo'q, PIN faqat uzunlik bo'yicha
 tekshiriladi, naqd sessiya hech qayerda qayd etilmaydi. ТЗ §11: har naqd sessiya
@@ -349,7 +349,7 @@ start_session/extend_session rad etiladi, lekin MAVJUD sessiya to'xtatilmaydi (h
 §7 taklifi). Reja tasdiqlangach bajar, to'liq unit testlar bilan.
 ```
 
-### [ ] T12. Admin taqdiri bo'yicha qaror (kod emas — qaror!)
+### [x] T12. Admin taqdiri bo'yicha qaror (kod emas — qaror!) — 2026-07-29 HAL BO'LDI
 
 ТЗ §11/23 bo'yicha menejer paneli — kontroller beradigan **web-PWA**, WPF emas.
 Backend jamoasi bilan kelishing:
@@ -357,11 +357,20 @@ Backend jamoasi bilan kelishing:
 - **Variant A:** panel PWA bo'ladi (ТЗ'ga mos) → WPF Admin faqat dev-vosita,
   unga boshqa katta ish sarflanmaydi (T7 audit logi baribir kerak — u naqd oqim
   qayerda bo'lsa o'sha yerga ko'chadi).
-- **Variant B:** WPF Admin rasmiy T2-avtoritet bo'ladi → unga kontroller-engine
-  (agentlar bilan WS hub, to'lov opros, grant berish, outbox) kerak — bu katta
-  alohida loyiha, backend bilan birgalikda rejalashtiriladi.
+- **Variant B (TANLANDI):** WPF Admin rasmiy T2-avtoritet bo'ladi → unga
+  kontroller-engine (agentlar bilan WS hub, to'lov opros, grant berish, outbox)
+  kerak — bu katta alohida loyiha, backend bilan birgalikda rejalashtiriladi.
 
-Qaror qabul qilinmaguncha Admin'ga T7'dan boshqa ish qilmaslik tavsiya etiladi.
+**Bajarildi (2026-07-29, Milestone 1):** `ControllerHubService` — ko'p-ulanishli
+WebSocket hub (`src/ClubPay.Agent.Admin/Services/Controller/`), Agentlar (Client
+loyihasidagi `ControllerChannelService`) shu hub'ga to'g'ridan-to'g'ri ulanadi va
+real vaqtda boshqariladi (start/extend/end/lock/unlock/wake/sleep/set_repair/
+get_status), `AdminViewModel` endi 20 ta demo PC o'rniga real `IPcStateStore`dan
+oziqlanadi. Legacy HTTP (`AgentEndpointServer`/`IPendingSessionStore`) o'chirildi.
+**Hali qolgan (T2-avtoritetning to'liq zanjiri uchun):** to'lov-provayder oprosi
+serverisiz/T1-T2 holatda (merchant-sekret masalasi hali javobsiz), mDNS discovery +
+lokal HTTPS, hub-tarafda outbox/durability — bularning barchasi keyingi bosqich,
+backend jamoasi bilan kelishilishi kerak.
 
 ---
 

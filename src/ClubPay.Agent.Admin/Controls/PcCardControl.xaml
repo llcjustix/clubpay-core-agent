@@ -80,17 +80,17 @@
           <ColumnDefinition Width="6"/>
           <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
-        <Border Grid.Column="0" Style="{StaticResource MiniBtn}">
+        <Border Grid.Column="0" Style="{StaticResource MiniBtn}" MouseLeftButtonUp="OnWakeClick">
           <TextBlock Text="Wake" HorizontalAlignment="Center" VerticalAlignment="Center"
                      FontFamily="{StaticResource FontChakra}" FontSize="12" FontWeight="Medium"
                      Foreground="{StaticResource TextSecondary}" Padding="0,7"/>
         </Border>
-        <Border Grid.Column="2" Style="{StaticResource MiniBtn}">
+        <Border Grid.Column="2" Style="{StaticResource MiniBtn}" MouseLeftButtonUp="OnSleepClick">
           <TextBlock Text="Sleep" HorizontalAlignment="Center" VerticalAlignment="Center"
                      FontFamily="{StaticResource FontChakra}" FontSize="12" FontWeight="Medium"
                      Foreground="{StaticResource TextSecondary}" Padding="0,7"/>
         </Border>
-        <Border Grid.Column="4" Style="{StaticResource MiniBtn}">
+        <Border Grid.Column="4" Style="{StaticResource MiniBtn}" MouseLeftButtonUp="OnEndClick">
           <TextBlock Text="End" HorizontalAlignment="Center" VerticalAlignment="Center"
                      FontFamily="{StaticResource FontChakra}" FontSize="12" FontWeight="Medium"
                      Foreground="{StaticResource TextSecondary}" Padding="0,7"/>

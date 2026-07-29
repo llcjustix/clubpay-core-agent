@@ -6,13 +6,13 @@ namespace ClubPay.Agent.Admin.Views;
 
 public partial class CashPaymentDialog : UserControl
 {
-    private AdminViewModel Vm => (AdminViewModel)DataContext;
+    private CashPaymentViewModel Vm => (CashPaymentViewModel)DataContext;
 
     public CashPaymentDialog() => InitializeComponent();
 
     private void OnConfirm(object sender, MouseButtonEventArgs e)
-        => Vm.CloseCashPaymentCommand.Execute(null); // TODO: real confirm flow
+        => Vm.ConfirmCommand.Execute(null);
 
     private void OnCancel(object sender, MouseButtonEventArgs e)
-        => Vm.CloseCashPaymentCommand.Execute(null);
+        => Vm.CancelCommand.Execute(null);
 }

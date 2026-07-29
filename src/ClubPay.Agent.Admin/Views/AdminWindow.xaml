@@ -206,7 +206,10 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate>
               <controls:PcCardControl DataContext="{Binding}" Margin="7"
-                                      PcSelected="OnPcSelected"/>
+                                      PcSelected="OnPcSelected"
+                                      PcWakeRequested="OnPcWakeRequested"
+                                      PcSleepRequested="OnPcSleepRequested"
+                                      PcEndRequested="OnPcEndRequested"/>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
@@ -225,7 +228,7 @@
         <!-- Cash Payment modal -->
         <Grid Background="#CC060811"
               Visibility="{Binding IsCashPaymentVisible, Converter={StaticResource BoolVis}}">
-          <views:CashPaymentDialog DataContext="{Binding}"
+          <views:CashPaymentDialog DataContext="{Binding CashPayment}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Grid>
       </Grid>
