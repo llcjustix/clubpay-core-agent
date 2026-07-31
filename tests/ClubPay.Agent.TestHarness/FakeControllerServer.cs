@@ -1,8 +1,11 @@
 using System.Collections.Concurrent;
 using System.Net;
-using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using ClubPay.Agent.Core.Contracts;
 
 namespace ClubPay.Agent.TestHarness;
@@ -11,50 +14,68 @@ namespace ClubPay.Agent.TestHarness;
 /// Minimal in-process mock Controller for verifying ClubPay.Agent.Client's outbound WebSocket channel
 /// end to end — used by integration tests and by the standalone tools/MockController console app for
 /// manual smoke-testing. Speaks the exact same wire format (command/command_result/event envelopes,
-/// snake_case) as the real Controller would.
+/// snake_case) as the real Controller would. Hosted on Kestrel (not HttpListener) so the ephemeral
+/// port can be OS-assigned atomically via port 0 — no probe-then-bind race — and so shutdown honors
+/// CancellationToken cleanly instead of relying on HttpListener.Stop()/Close() racing in-flight
+/// native I/O.
 /// </summary>
 public sealed class FakeControllerServer : IAsyncDisposable
 {
-    private readonly HttpListener _http = new();
+    private readonly WebApplication _app;
     private readonly CancellationTokenSource _cts = new();
     private readonly ConcurrentQueue<CommandResultEnvelope> _commandResults = new();
     private readonly ConcurrentQueue<EventEnvelope> _events = new();
     private readonly SemaphoreSlim _resultSignal = new(0);
     private readonly SemaphoreSlim _eventSignal = new(0);
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
+    private readonly ConcurrentDictionary<string, int> _eventDeliveryCounts = new();
 
     private WebSocket? _socket;
-    private Task? _acceptTask;
 
-    public Uri WebSocketUrl { get; }
+    public Uri WebSocketUrl { get; private set; } = null!;
     public string? LastAuthorizationHeader { get; private set; }
     public string? LastExternalPcId { get; private set; }
     public bool RejectNextConnection { get; set; }
 
+    /// <summary>Default true so existing tests that don't care about the ack protocol need no changes.</summary>
+    public bool AutoAckEvents { get; set; } = true;
+
+    /// <summary>Delay applied before an auto-ack is sent — lets tests exercise the timeout/retry path.</summary>
+    public TimeSpan? EventAckDelay { get; set; }
+
+    /// <summary>Number of upcoming auto-acks to silently drop (decrements per suppressed event).</summary>
+    public int SuppressNextEventAcks { get; set; }
+
+    public int DeliveryCountFor(string eventId) => _eventDeliveryCounts.TryGetValue(eventId, out var c) ? c : 0;
+
     public FakeControllerServer()
     {
-        int port = GetFreePort();
-        WebSocketUrl = new Uri($"ws://localhost:{port}/agent/ws");
-        _http.Prefixes.Add($"http://localhost:{port}/");
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0));
+
+        _app = builder.Build();
+        _app.UseWebSockets();
+        _app.Map("/agent/ws", branch => branch.Run(HandleAgentWebSocketAsync));
     }
 
-    public Task StartAsync(CancellationToken ct = default)
+    public async Task StartAsync(CancellationToken ct = default)
     {
-        _http.Start();
-        _acceptTask = Task.Run(() => AcceptLoopAsync(_cts.Token), _cts.Token);
-        return Task.CompletedTask;
+        await _app.StartAsync(ct);
+
+        var boundAddress = new Uri(_app.Urls.First());
+        WebSocketUrl = new Uri($"ws://{boundAddress.Host}:{boundAddress.Port}/agent/ws");
     }
 
     public async Task StopAsync(CancellationToken ct = default)
     {
         _cts.Cancel();
-        _http.Stop();
 
-        if (_acceptTask is null)
-            return;
-
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
         try
         {
-            await _acceptTask.WaitAsync(TimeSpan.FromSeconds(2), ct);
+            await _app.StopAsync(timeoutCts.Token);
         }
         catch (Exception ex) when (ex is OperationCanceledException or TimeoutException)
         {
@@ -65,23 +86,61 @@ public sealed class FakeControllerServer : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await StopAsync();
-        _http.Close();
+        await _app.DisposeAsync();
         _cts.Dispose();
         _resultSignal.Dispose();
         _eventSignal.Dispose();
+        _sendLock.Dispose();
     }
 
     /// <summary>Sends a command to whichever agent is currently connected.</summary>
     public async Task SendCommandAsync(string name, object payload, string? commandId = null, CancellationToken ct = default)
     {
         await WaitForConnectionAsync(TimeSpan.FromSeconds(5), ct);
+        var envelope = new CommandEnvelope(
+            "command", name, commandId ?? "cmd_" + Guid.NewGuid().ToString("N"), DateTime.UtcNow, payload);
+        await SendJsonAsync(envelope, ct);
+    }
+
+    /// <summary>Sends an event_ack for the given event_id to whichever agent is currently connected —
+    /// for tests driving the ack protocol manually (AutoAckEvents = false).</summary>
+    public Task SendEventAckAsync(string eventId, CancellationToken ct = default) =>
+        SendJsonAsync(new EventAckEnvelope("event_ack", eventId), ct);
+
+    private async Task SendJsonAsync(object envelope, CancellationToken ct)
+    {
         if (_socket is not { State: WebSocketState.Open } socket)
             throw new InvalidOperationException("no agent is connected");
 
-        var envelope = new CommandEnvelope(
-            "command", name, commandId ?? "cmd_" + Guid.NewGuid().ToString("N"), DateTime.UtcNow, payload);
         var json = JsonSerializer.SerializeToUtf8Bytes(envelope, ControllerJsonOptions.Default);
-        await socket.SendAsync(new ArraySegment<byte>(json), WebSocketMessageType.Text, endOfMessage: true, ct);
+        await _sendLock.WaitAsync(ct);
+        try
+        {
+            await socket.SendAsync(new ArraySegment<byte>(json), WebSocketMessageType.Text, endOfMessage: true, ct);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
+    }
+
+    private async Task SendAckAfterOptionalDelayAsync(string eventId, CancellationToken ct)
+    {
+        try
+        {
+            if (EventAckDelay is { } delay)
+                await Task.Delay(delay, ct);
+            await SendEventAckAsync(eventId, ct);
+        }
+        catch (Exception) when (ct.IsCancellationRequested)
+        {
+            // connection torn down (e.g. SimulateDisconnect) while the ack delay was pending — fine,
+            // this is test infrastructure driving a deliberate disconnect-before-ack scenario
+        }
+        catch (InvalidOperationException)
+        {
+            // socket already gone by the time the delay elapsed — same benign case as above
+        }
     }
 
     public async Task WaitForConnectionAsync(TimeSpan timeout, CancellationToken ct = default)
@@ -130,48 +189,30 @@ public sealed class FakeControllerServer : IAsyncDisposable
         }
     }
 
-    private async Task AcceptLoopAsync(CancellationToken ct)
+    /// <summary>Invoked fresh by Kestrel for every new WebSocket upgrade to /agent/ws — including a
+    /// reconnect after SimulateDisconnect — which is the direct equivalent of the old HttpListener
+    /// accept loop's "go around again after each connection ends" behavior.</summary>
+    private async Task HandleAgentWebSocketAsync(HttpContext context)
     {
-        try
+        if (!context.WebSockets.IsWebSocketRequest)
         {
-            while (!ct.IsCancellationRequested)
-            {
-                var context = await _http.GetContextAsync();
-
-                if (!context.Request.IsWebSocketRequest)
-                {
-                    context.Response.StatusCode = 400;
-                    context.Response.Close();
-                    continue;
-                }
-
-                LastAuthorizationHeader = context.Request.Headers["Authorization"];
-                LastExternalPcId = context.Request.QueryString["external_pc_id"];
-
-                if (RejectNextConnection)
-                {
-                    RejectNextConnection = false;
-                    context.Response.StatusCode = 401;
-                    context.Response.Close();
-                    continue;
-                }
-
-                var wsContext = await context.AcceptWebSocketAsync(subProtocol: null);
-                _socket = wsContext.WebSocket;
-                await ReceiveLoopAsync(_socket, ct);
-            }
+            context.Response.StatusCode = 400;
+            return;
         }
-        catch (HttpListenerException)
+
+        LastAuthorizationHeader = context.Request.Headers["Authorization"];
+        LastExternalPcId = context.Request.Query["external_pc_id"];
+
+        if (RejectNextConnection)
         {
-            // listener stopped — normal on StopAsync
+            RejectNextConnection = false;
+            context.Response.StatusCode = 401;
+            return;
         }
-        catch (ObjectDisposedException)
-        {
-            // listener disposed — normal on StopAsync
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-        }
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, context.RequestAborted);
+        _socket = await context.WebSockets.AcceptWebSocketAsync();
+        await ReceiveLoopAsync(_socket, linkedCts.Token);
     }
 
     private async Task ReceiveLoopAsync(WebSocket socket, CancellationToken ct)
@@ -230,17 +271,17 @@ public sealed class FakeControllerServer : IAsyncDisposable
                 {
                     _events.Enqueue(eventEnvelope);
                     _eventSignal.Release();
+                    _eventDeliveryCounts.AddOrUpdate(eventEnvelope.EventId, 1, (_, c) => c + 1);
+
+                    if (AutoAckEvents)
+                    {
+                        if (SuppressNextEventAcks > 0)
+                            SuppressNextEventAcks--;
+                        else
+                            _ = SendAckAfterOptionalDelayAsync(eventEnvelope.EventId, ct);
+                    }
                 }
                 break;
         }
-    }
-
-    private static int GetFreePort()
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
     }
 }

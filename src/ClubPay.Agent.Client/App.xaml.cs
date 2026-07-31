@@ -36,13 +36,14 @@ public partial class App : Application
 
         sc.AddSingleton<IConfiguration>(config);
 
-        // AgentStateRepository backs three interfaces from one local SQLite database — register it once.
-        // and forward all three to the same instance (three separate AddSingleton<T,TImpl> calls would
-        // otherwise create three different instances writing to the same file independently).
+        // AgentStateRepository backs four interfaces from one local SQLite database — register it once
+        // and forward all four to the same instance (separate AddSingleton<T,TImpl> calls would
+        // otherwise create separate instances writing to the same file independently).
         sc.AddSingleton<AgentStateRepository>();
         sc.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<AgentStateRepository>());
         sc.AddSingleton<IGrantIdempotencyStore>(sp => sp.GetRequiredService<AgentStateRepository>());
         sc.AddSingleton<IControllerOutbox>(sp => sp.GetRequiredService<AgentStateRepository>());
+        sc.AddSingleton<ICommandIdempotencyStore>(sp => sp.GetRequiredService<AgentStateRepository>());
 
         sc.AddSingleton<IAgentService, AgentService>();
         sc.AddSingleton<IKioskLockService, KioskLockService>();
@@ -53,6 +54,7 @@ public partial class App : Application
         sc.AddSingleton<IVoucherService, VoucherService>();
         sc.AddSingleton<IManagerCodeService, ManagerCodeService>();
         sc.AddSingleton<ILockCodeService, LockCodeService>();
+        sc.AddSingleton<ICommandValidator, CommandValidationService>();
         sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();
         sc.AddSingleton<IControllerChannel, ControllerChannelService>();
         sc.AddSingleton<IConnectionStateProvider>(sp => sp.GetRequiredService<IControllerChannel>());

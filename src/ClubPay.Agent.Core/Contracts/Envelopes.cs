@@ -17,3 +17,9 @@ public sealed record CommandResultEnvelope(
 
 /// <summary>Contract §5 wrapper: Agent → Controller, async, no reply expected.</summary>
 public sealed record EventEnvelope(string Type, string Name, string EventId, DateTime Ts, object Payload);
+
+/// <summary>Contract §5 wrapper: Controller → Agent, sent for every received EventEnvelope (new or
+/// duplicate) so the Agent can stop retrying/holding it in the durable outbox. No status field: an ack
+/// means "received and deduped," not "applied without error" — PcStateStore.ApplyEvent already
+/// catches+logs its own application failures without blocking the ack.</summary>
+public sealed record EventAckEnvelope(string Type, string EventId);

@@ -28,6 +28,7 @@ public partial class App : Application
         sc.AddLogging(b => b.AddDebug());
         sc.AddSingleton<IPcRegistry, PcRegistry>();
         sc.AddSingleton<IPcStateStore, PcStateStore>();
+        sc.AddSingleton<IEventIdempotencyStore, EventIdempotencyStore>();
         sc.AddSingleton<ControllerHubService>();
         sc.AddSingleton<ICashAuditService, CashAuditService>();
         sc.AddSingleton<IManagerPinService, ManagerPinService>();

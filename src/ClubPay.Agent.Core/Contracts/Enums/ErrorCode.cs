@@ -15,4 +15,5 @@ public enum ErrorCode
     [JsonStringEnumMemberName("pc_in_repair")] PcInRepair,
     [JsonStringEnumMemberName("duplicate")] Duplicate,
     [JsonStringEnumMemberName("wol_failed")] WolFailed,
+    [JsonStringEnumMemberName("conflict")] Conflict,
 }

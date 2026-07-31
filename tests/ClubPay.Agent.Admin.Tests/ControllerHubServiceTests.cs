@@ -1,5 +1,4 @@
-using System.Net;
-using System.Net.Sockets;
+using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
@@ -8,7 +7,9 @@ using ClubPay.Agent.Admin.Services.Controller;
 using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Contracts;
 using ClubPay.Agent.Core.Contracts.Enums;
+using ClubPay.Agent.Core.Contracts.Events;
 using ClubPay.Agent.Core.Contracts.Payloads;
+using ClubPay.Agent.TestHarness;
 
 namespace ClubPay.Agent.Admin.Tests;
 
@@ -23,7 +24,7 @@ public sealed class ControllerHubServiceTests : IAsyncDisposable
     private const string ExternalPcId = "club12-pc01";
     private const string AgentToken = "test-token-123";
 
-    private readonly int _port = GetFreePort();
+    private readonly int _port = TestPortAllocator.GetFreePort();
     private readonly IPcRegistry _registry;
     private readonly PcStateStore _stateStore;
     private readonly ControllerHubService _hub;
@@ -43,7 +44,8 @@ public sealed class ControllerHubServiceTests : IAsyncDisposable
 
         _registry = new PcRegistry(config);
         _stateStore = new PcStateStore(_registry, NullLogger<PcStateStore>.Instance);
-        _hub = new ControllerHubService(config, _registry, _stateStore, NullLogger<ControllerHubService>.Instance);
+        _hub = new ControllerHubService(
+            config, _registry, _stateStore, new EventIdempotencyStore(), NullLogger<ControllerHubService>.Instance);
     }
 
     public async ValueTask DisposeAsync() => await _hub.DisposeAsync();
@@ -128,6 +130,98 @@ public sealed class ControllerHubServiceTests : IAsyncDisposable
         Assert.Equal(PcState.Offline, _stateStore.Get(ExternalPcId)!.PcState);
     }
 
+    [Fact]
+    public async Task ReceiveEvent_SendsEventAckWithMatchingEventId()
+    {
+        await _hub.StartAsync();
+        await using var agent = await FakeAgent.ConnectAsync(_port, ExternalPcId, AgentToken);
+        _ = agent.RunReceiveLoopAsync();
+        await WaitUntilConnectedAsync();
+
+        await agent.SendEventAsync(
+            Constants.ControllerChannel.EventName.SessionStarted,
+            new SessionStartedEvent("cs_1", ExternalPcId, "grant_1", null, DateTime.UtcNow),
+            eventId: "ev_ack_test");
+
+        var ack = await agent.AwaitNextEventAckAsync();
+        Assert.Equal("ev_ack_test", ack.EventId);
+    }
+
+    [Fact]
+    public async Task ReceiveDuplicateEvent_AppliesFirstPayloadOnly_AcksBoth()
+    {
+        await _hub.StartAsync();
+        await using var agent = await FakeAgent.ConnectAsync(_port, ExternalPcId, AgentToken);
+        _ = agent.RunReceiveLoopAsync();
+        await WaitUntilConnectedAsync();
+
+        await agent.SendEventAsync(
+            Constants.ControllerChannel.EventName.SessionStarted,
+            new SessionStartedEvent("cs_first", ExternalPcId, "grant_1", null, DateTime.UtcNow),
+            eventId: "ev_dup");
+        var firstAck = await agent.AwaitNextEventAckAsync();
+
+        await agent.SendEventAsync(
+            Constants.ControllerChannel.EventName.SessionStarted,
+            new SessionStartedEvent("cs_second", ExternalPcId, "grant_1", null, DateTime.UtcNow),
+            eventId: "ev_dup");
+        var secondAck = await agent.AwaitNextEventAckAsync();
+
+        Assert.Equal("ev_dup", firstAck.EventId);
+        Assert.Equal("ev_dup", secondAck.EventId);
+        Assert.Equal("cs_first", _stateStore.Get(ExternalPcId)!.CoreSessionId);
+    }
+
+    [Fact]
+    public async Task ReceiveDuplicateEvent_ChangedFiresOnlyOnce()
+    {
+        await _hub.StartAsync();
+        await using var agent = await FakeAgent.ConnectAsync(_port, ExternalPcId, AgentToken);
+        _ = agent.RunReceiveLoopAsync();
+        await WaitUntilConnectedAsync();
+
+        var changeCount = 0;
+        _stateStore.Changed += _ => changeCount++;
+
+        await agent.SendEventAsync(
+            Constants.ControllerChannel.EventName.SessionStarted,
+            new SessionStartedEvent("cs_1", ExternalPcId, "grant_1", null, DateTime.UtcNow),
+            eventId: "ev_changed_once");
+        await agent.AwaitNextEventAckAsync();
+
+        await agent.SendEventAsync(
+            Constants.ControllerChannel.EventName.SessionStarted,
+            new SessionStartedEvent("cs_1", ExternalPcId, "grant_1", null, DateTime.UtcNow),
+            eventId: "ev_changed_once");
+        await agent.AwaitNextEventAckAsync();
+
+        Assert.Equal(1, changeCount);
+    }
+
+    [Fact]
+    public async Task ReceiveEvent_DifferentEventIds_BothAppliedAndAckedIndependently()
+    {
+        await _hub.StartAsync();
+        await using var agent = await FakeAgent.ConnectAsync(_port, ExternalPcId, AgentToken);
+        _ = agent.RunReceiveLoopAsync();
+        await WaitUntilConnectedAsync();
+
+        await agent.SendEventAsync(
+            Constants.ControllerChannel.EventName.SessionStarted,
+            new SessionStartedEvent("cs_1", ExternalPcId, "grant_1", null, DateTime.UtcNow),
+            eventId: "ev_a");
+        var ackA = await agent.AwaitNextEventAckAsync();
+
+        await agent.SendEventAsync(
+            Constants.ControllerChannel.EventName.SessionExtended,
+            new SessionExtendedEvent("cs_1", ExternalPcId, "grant_2", 600, DateTime.UtcNow.AddMinutes(10)),
+            eventId: "ev_b");
+        var ackB = await agent.AwaitNextEventAckAsync();
+
+        Assert.Equal("ev_a", ackA.EventId);
+        Assert.Equal("ev_b", ackB.EventId);
+    }
+
     private async Task WaitUntilConnectedAsync() =>
         await WaitUntilAsync(() => _stateStore.Get(ExternalPcId)?.IsConnected == true);
 
@@ -142,21 +236,16 @@ public sealed class ControllerHubServiceTests : IAsyncDisposable
         }
     }
 
-    private static int GetFreePort()
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
-
     /// <summary>Minimal stand-in for ClubPay.Agent.Client.Services.ControllerChannelService's outbound
-    /// connection — just enough wire behavior (connect, ack every command as "ok") to exercise the hub.</summary>
+    /// connection — just enough wire behavior (connect, ack every command as "ok", send events, read
+    /// event_acks) to exercise the hub.</summary>
     private sealed class FakeAgent : IAsyncDisposable
     {
         private readonly ClientWebSocket _socket;
         private readonly CancellationTokenSource _cts = new();
+        private readonly SemaphoreSlim _sendLock = new(1, 1);
+        private readonly ConcurrentQueue<EventAckEnvelope> _acks = new();
+        private readonly SemaphoreSlim _ackSignal = new(0);
 
         private FakeAgent(ClientWebSocket socket) => _socket = socket;
 
@@ -169,7 +258,10 @@ public sealed class ControllerHubServiceTests : IAsyncDisposable
             return new FakeAgent(socket);
         }
 
-        public Task RunEchoLoopAsync() => Task.Run(async () =>
+        /// <summary>Back-compat alias for the original command-only echo loop.</summary>
+        public Task RunEchoLoopAsync() => RunReceiveLoopAsync();
+
+        public Task RunReceiveLoopAsync(bool autoAckCommands = true) => Task.Run(async () =>
         {
             var buffer = new byte[8192];
             try
@@ -190,12 +282,28 @@ public sealed class ControllerHubServiceTests : IAsyncDisposable
                     ms.Position = 0;
                     using var doc = await JsonDocument.ParseAsync(ms, cancellationToken: _cts.Token);
                     var root = doc.RootElement;
-                    var commandId = root.GetProperty("command_id").GetString()!;
 
-                    var reply = new CommandResultEnvelope(
-                        Constants.ControllerChannel.MessageType.CommandResult, commandId, "ok", new EmptyResult());
-                    var json = JsonSerializer.SerializeToUtf8Bytes(reply, ControllerJsonOptions.Default);
-                    await _socket.SendAsync(new ArraySegment<byte>(json), WebSocketMessageType.Text, true, _cts.Token);
+                    switch (root.GetProperty("type").GetString())
+                    {
+                        case "command":
+                            if (autoAckCommands)
+                            {
+                                var commandId = root.GetProperty("command_id").GetString()!;
+                                var reply = new CommandResultEnvelope(
+                                    Constants.ControllerChannel.MessageType.CommandResult, commandId, "ok", new EmptyResult());
+                                await SendJsonAsync(reply, _cts.Token);
+                            }
+                            break;
+
+                        case "event_ack":
+                            var ack = root.Deserialize<EventAckEnvelope>(ControllerJsonOptions.Default);
+                            if (ack is not null)
+                            {
+                                _acks.Enqueue(ack);
+                                _ackSignal.Release();
+                            }
+                            break;
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -206,14 +314,46 @@ public sealed class ControllerHubServiceTests : IAsyncDisposable
             }
         });
 
+        public Task SendEventAsync(string name, object payload, string? eventId = null, CancellationToken ct = default)
+        {
+            var envelope = new EventEnvelope(
+                "event", name, eventId ?? "ev_" + Guid.NewGuid().ToString("N"), DateTime.UtcNow, payload);
+            return SendJsonAsync(envelope, ct);
+        }
+
+        public async Task<EventAckEnvelope> AwaitNextEventAckAsync(TimeSpan? timeout = null, CancellationToken ct = default)
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(timeout ?? TimeSpan.FromSeconds(5));
+            await _ackSignal.WaitAsync(cts.Token);
+            _acks.TryDequeue(out var ack);
+            return ack!;
+        }
+
+        private async Task SendJsonAsync(object envelope, CancellationToken ct)
+        {
+            var json = JsonSerializer.SerializeToUtf8Bytes(envelope, ControllerJsonOptions.Default);
+            await _sendLock.WaitAsync(ct);
+            try
+            {
+                await _socket.SendAsync(new ArraySegment<byte>(json), WebSocketMessageType.Text, true, ct);
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
+        }
+
         public ValueTask DisposeAsync()
         {
             _cts.Cancel();
-            // A graceful CloseAsync() would race with RunEchoLoopAsync's own concurrent
+            // A graceful CloseAsync() would race with RunReceiveLoopAsync's own concurrent
             // ReceiveAsync on the same socket (only one outstanding receive is allowed) — Abort()
             // matches FakeControllerServer.SimulateDisconnect()'s hard-drop teardown pattern.
             _socket.Abort();
             _socket.Dispose();
+            _sendLock.Dispose();
+            _ackSignal.Dispose();
             return ValueTask.CompletedTask;
         }
     }

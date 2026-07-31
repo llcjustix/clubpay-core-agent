@@ -28,7 +28,8 @@ public class AdminViewModelTests
         var config = new ConfigurationBuilder().AddInMemoryCollection(data).Build();
         var registry = new PcRegistry(config);
         var store = new PcStateStore(registry, NullLogger<PcStateStore>.Instance);
-        var hub = new ControllerHubService(config, registry, store, NullLogger<ControllerHubService>.Instance);
+        var hub = new ControllerHubService(
+            config, registry, store, new EventIdempotencyStore(), NullLogger<ControllerHubService>.Instance);
         var cashPayment = new CashPaymentViewModel(
             Mock.Of<ICashAuditService>(), Mock.Of<IManagerPinService>(), NullLogger<CashPaymentViewModel>.Instance);
         var vm = new AdminViewModel(registry, store, hub, cashPayment, NullLogger<AdminViewModel>.Instance);

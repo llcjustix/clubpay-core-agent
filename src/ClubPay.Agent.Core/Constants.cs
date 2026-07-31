@@ -48,6 +48,7 @@ public static class Constants
             public const string Command = "command";
             public const string CommandResult = "command_result";
             public const string Event = "event";
+            public const string EventAck = "event_ack";
         }
 
         public static class CommandName
@@ -89,5 +90,19 @@ public static class Constants
         // limit in practice only guards against an unusual pileup of money/session events (contract §9:
         // those are never auto-dropped, only warned about).
         public const int MaxOutboxSize = 500;
+
+        /// <summary>Telemetry is coalesced in-memory and never awaits an event_ack — losing/superseding
+        /// it is harmless since the next one lands within HeartbeatIntervalSeconds. Every other event
+        /// name is durable (money/session) and goes through the ack-and-retry path.</summary>
+        public static bool IsTelemetryEvent(string name) =>
+            name is EventName.Heartbeat or EventName.PcStateChanged;
+    }
+
+    /// <summary>Bounds enforced by ICommandValidator on incoming controller command payloads — not
+    /// wire-contract values, purely a defensive ceiling against malformed/malicious duration fields.</summary>
+    public static class SessionCommand
+    {
+        public const int MaxGrantedSeconds = 86_400;  // 24 soat
+        public const int MaxAddedSeconds = 86_400;    // 24 soat
     }
 }

@@ -14,6 +14,10 @@ public interface IControllerOutbox
 
     Task EnqueueAsync(EventEnvelope evt, CancellationToken ct = default);
     Task<IReadOnlyList<EventEnvelope>> GetPendingAsync(CancellationToken ct = default);
+
+    /// <summary>Removes an event from the pending queue. Call immediately after send for telemetry
+    /// events (no ack exists for them); call only after a correlated event_ack is received for durable
+    /// events — this is what makes the outbox reliable rather than fire-and-forget.</summary>
     Task MarkSentAsync(string eventId, CancellationToken ct = default);
 
     /// <summary>Completes as soon as a new event is enqueued via <see cref="PublishEventAsync"/>, or after

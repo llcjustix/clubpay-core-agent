@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -7,6 +8,7 @@ using ClubPay.Agent.Client.Services;
 using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Contracts;
 using ClubPay.Agent.Core.Models;
+using ClubPay.Agent.Core.Services;
 
 namespace ClubPay.Agent.Client.Tests.Services;
 
@@ -331,5 +333,76 @@ public class AgentStateRepositoryTests : IDisposable
         var restarted = BuildSut();
         Assert.Null(await restarted.LoadAsync());
         Assert.Contains((await restarted.GetPendingAsync()), e => e.EventId == "ev_end");
+    }
+
+    private static CommandResultEnvelope MakeCommandResult(string commandId) =>
+        new("command_result", commandId, "ok", new { remaining_seconds = 100 });
+
+    [Fact]
+    public async Task RecordCommandResultAsync_ThenFindCommandResultAsync_ReturnsStoredResultAfterRestart()
+    {
+        var sut = BuildSut();
+        var payload = new { external_pc_id = "PC-12" };
+        var result = MakeCommandResult("cmd_1");
+
+        await sut.RecordCommandResultAsync("cmd_1", "lock", payload, result);
+
+        var restarted = BuildSut();
+        var found = await restarted.FindCommandResultAsync("cmd_1");
+
+        Assert.NotNull(found);
+        Assert.Equal("lock", found!.CommandName);
+        Assert.Equal(result.Status, found.Result.Status);
+        Assert.Equal(result.CommandId, found.Result.CommandId);
+    }
+
+    [Fact]
+    public async Task FindCommandResultAsync_WhenNeverRecorded_ReturnsNull()
+    {
+        var sut = BuildSut();
+
+        var found = await sut.FindCommandResultAsync("cmd_unknown");
+
+        Assert.Null(found);
+    }
+
+    [Fact]
+    public async Task RecordCommandResultAsync_CalledTwiceForSameCommandId_KeepsFirstResult()
+    {
+        var sut = BuildSut();
+        var payload = new { };
+
+        await sut.RecordCommandResultAsync("cmd_1", "lock", payload, MakeCommandResult("cmd_1"));
+        await sut.RecordCommandResultAsync("cmd_1", "unlock", payload, new CommandResultEnvelope("command_result", "cmd_1", "error"));
+
+        var found = await sut.FindCommandResultAsync("cmd_1");
+
+        Assert.NotNull(found);
+        Assert.Equal("lock", found!.CommandName);
+        Assert.Equal("ok", found.Result.Status);
+    }
+
+    [Fact]
+    public async Task RecordCommandResultAsync_PrunesEntriesOlderThanRetention()
+    {
+        Directory.CreateDirectory(_dataDir);
+        var sut = BuildSut();
+        await sut.LoadAsync(); // creates the DB file
+
+        var dbPath = Path.Combine(_dataDir, "agent-state.db");
+        await using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = dbPath, Pooling = false }.ToString()))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "INSERT INTO command_results(command_id, command_name, payload_json, result_json, created_at_utc) VALUES($id, 'lock', '{}', '{}', $at);";
+            command.Parameters.AddWithValue("$id", "cmd_old");
+            command.Parameters.AddWithValue("$at", DateTime.UtcNow.AddDays(-31).ToString("O"));
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await sut.RecordCommandResultAsync("cmd_new", "lock", new { }, MakeCommandResult("cmd_new"));
+
+        Assert.Null(await sut.FindCommandResultAsync("cmd_old"));
+        Assert.NotNull(await sut.FindCommandResultAsync("cmd_new"));
     }
 }

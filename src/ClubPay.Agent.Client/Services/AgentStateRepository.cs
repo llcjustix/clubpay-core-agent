@@ -14,9 +14,10 @@ namespace ClubPay.Agent.Client.Services;
 /// Local, durable state for one Agent. SQLite keeps the Agent offline-capable without making it an
 /// authority: sessions, replay keys and durable outbox events survive restarts on this PC only.
 /// </summary>
-public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore, IControllerOutbox, IAtomicAgentStateStore, IDisposable
+public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore, IControllerOutbox, IAtomicAgentStateStore, ICommandIdempotencyStore, IDisposable
 {
     private static readonly TimeSpan GrantRetention = TimeSpan.FromDays(30);
+    private static readonly TimeSpan CommandResultRetention = TimeSpan.FromDays(30);
     private readonly string _databasePath;
     private readonly string _legacyJsonPath;
     private readonly ILogger<AgentStateRepository> _logger;
@@ -108,13 +109,49 @@ public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore
         finally { _gate.Release(); }
     }
 
+    public async Task<StoredCommandResult?> FindCommandResultAsync(string commandId, CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await EnsureLoadedAsync(ct);
+            await using var connection = await OpenConnectionAsync(ct);
+            await using var command = connection.CreateCommand();
+            command.CommandText = "SELECT command_name, payload_json, result_json FROM command_results WHERE command_id = $id;";
+            command.Parameters.AddWithValue("$id", commandId);
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct)) return null;
+            var name = reader.GetString(0);
+            var payload = JsonDocument.Parse(reader.GetString(1)).RootElement.Clone();
+            var result = JsonSerializer.Deserialize<CommandResultEnvelope>(reader.GetString(2), ControllerJsonOptions.Default)!;
+            return new StoredCommandResult(name, payload, result);
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task RecordCommandResultAsync(string commandId, string commandName, object? payload,
+        CommandResultEnvelope result, CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await EnsureLoadedAsync(ct);
+            await using var connection = await OpenConnectionAsync(ct);
+            await using var transaction = connection.BeginTransaction();
+            await InsertCommandResultAsync(connection, transaction, commandId, commandName, payload, result, DateTime.UtcNow, ct);
+            await PruneCommandResultsAsync(connection, transaction, ct);
+            await transaction.CommitAsync(ct);
+        }
+        finally { _gate.Release(); }
+    }
+
     public async Task PublishEventAsync(string eventName, object payload, CancellationToken ct = default)
     {
         var evt = new EventEnvelope(Constants.ControllerChannel.MessageType.Event, eventName, "ev_" + Guid.NewGuid().ToString("N"), DateTime.UtcNow, payload);
         await _gate.WaitAsync(ct);
         try
         {
-            if (IsTelemetry(eventName))
+            if (Constants.ControllerChannel.IsTelemetryEvent(eventName))
                 _telemetryPending[eventName] = evt;
             else
             {
@@ -228,7 +265,7 @@ public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore
         if (_initialized) return;
         await using var connection = await OpenConnectionAsync(ct);
         var version = await GetSchemaVersionAsync(connection, ct);
-        if (version > 1)
+        if (version > 2)
             throw new InvalidOperationException($"Agent state DB schema {version} bu agent versiyasidan yangi");
         await using (var command = connection.CreateCommand())
         {
@@ -240,13 +277,21 @@ public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore
                 CREATE TABLE IF NOT EXISTS applied_ids (id TEXT PRIMARY KEY, applied_at_utc TEXT NOT NULL);
                 CREATE INDEX IF NOT EXISTS ix_applied_ids_applied_at ON applied_ids(applied_at_utc);
                 CREATE TABLE IF NOT EXISTS outbox (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT NOT NULL UNIQUE, payload_json TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS command_results (
+                    command_id TEXT PRIMARY KEY,
+                    command_name TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    result_json TEXT NOT NULL,
+                    created_at_utc TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS ix_command_results_created_at ON command_results(created_at_utc);
                 """;
             await command.ExecuteNonQueryAsync(ct);
         }
-        if (version == 0)
+        if (version < 2)
         {
             await using var versionCommand = connection.CreateCommand();
-            versionCommand.CommandText = "PRAGMA user_version = 1;";
+            versionCommand.CommandText = "PRAGMA user_version = 2;";
             await versionCommand.ExecuteNonQueryAsync(ct);
         }
         if (await IsDatabaseEmptyAsync(connection, ct) && File.Exists(_legacyJsonPath))
@@ -354,7 +399,25 @@ public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore
         command.CommandText = "DELETE FROM applied_ids WHERE applied_at_utc < $cutoff;";
         command.Parameters.AddWithValue("$cutoff", (DateTime.UtcNow - GrantRetention).ToString("O")); await command.ExecuteNonQueryAsync(ct);
     }
-    private static bool IsTelemetry(string name) => name is Constants.ControllerChannel.EventName.Heartbeat or Constants.ControllerChannel.EventName.PcStateChanged;
+    private static async Task InsertCommandResultAsync(SqliteConnection connection, SqliteTransaction transaction,
+        string commandId, string commandName, object? payload, CommandResultEnvelope result, DateTime at, CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand(); command.Transaction = transaction;
+        command.CommandText = "INSERT OR IGNORE INTO command_results(command_id, command_name, payload_json, result_json, created_at_utc) VALUES($id, $name, $payload, $result, $at);";
+        command.Parameters.AddWithValue("$id", commandId);
+        command.Parameters.AddWithValue("$name", commandName);
+        command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(payload, ControllerJsonOptions.Default));
+        command.Parameters.AddWithValue("$result", JsonSerializer.Serialize(result, ControllerJsonOptions.Default));
+        command.Parameters.AddWithValue("$at", at.ToString("O"));
+        await command.ExecuteNonQueryAsync(ct);
+    }
+    private static async Task PruneCommandResultsAsync(SqliteConnection connection, SqliteTransaction transaction, CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand(); command.Transaction = transaction;
+        command.CommandText = "DELETE FROM command_results WHERE created_at_utc < $cutoff;";
+        command.Parameters.AddWithValue("$cutoff", (DateTime.UtcNow - CommandResultRetention).ToString("O"));
+        await command.ExecuteNonQueryAsync(ct);
+    }
     public void Dispose() { _gate.Dispose(); _sendSignal.Dispose(); }
     private sealed record PersistedState(Session? Session, List<AppliedGrant> AppliedGrantIds, List<EventEnvelope> Outbox);
     private sealed record AppliedGrant(string GrantId, DateTime AppliedAtUtc);

@@ -24,12 +24,18 @@ public sealed class ControllerHubService : IAsyncDisposable
 {
     private const int StatusPollIntervalSeconds = 15;
     private const int StatusPollTimeoutSeconds = 5;
+    private const int MaxStartAttempts = 3;
 
     private sealed class PcConnection
     {
         public required WebSocket Socket { get; init; }
         public required string ExternalPcId { get; init; }
         public SemaphoreSlim CommandGate { get; } = new(1, 1);
+
+        // A WebSocket only tolerates one outstanding SendAsync at a time — SendCommandAsync (manager
+        // action / status poll) and the event_ack reply from the receive loop can fire concurrently on
+        // the same connection, so every raw send goes through this lock.
+        public SemaphoreSlim SendLock { get; } = new(1, 1);
         public TaskCompletionSource<CommandResultEnvelope>? PendingResult { get; set; }
         public string? PendingCommandId { get; set; }
     }
@@ -37,8 +43,10 @@ public sealed class ControllerHubService : IAsyncDisposable
     private readonly HttpListener _http = new();
     private readonly IPcRegistry _registry;
     private readonly IPcStateStore _stateStore;
+    private readonly IEventIdempotencyStore _eventIdempotency;
     private readonly ILogger<ControllerHubService> _logger;
     private readonly ConcurrentDictionary<string, PcConnection> _connections = new();
+    private readonly ConcurrentDictionary<Task, byte> _connectionTasks = new();
 
     private CancellationTokenSource? _cts;
     private Task? _acceptTask;
@@ -48,10 +56,12 @@ public sealed class ControllerHubService : IAsyncDisposable
         IConfiguration config,
         IPcRegistry registry,
         IPcStateStore stateStore,
+        IEventIdempotencyStore eventIdempotency,
         ILogger<ControllerHubService> logger)
     {
         _registry = registry;
         _stateStore = stateStore;
+        _eventIdempotency = eventIdempotency;
         _logger = logger;
 
         var prefix = config["Controller:ListenPrefix"] ?? "http://+:8787/";
@@ -61,7 +71,24 @@ public sealed class ControllerHubService : IAsyncDisposable
     public Task StartAsync(CancellationToken ct = default)
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        _http.Start();
+
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                _http.Start();
+                break;
+            }
+            catch (HttpListenerException ex) when (attempt < MaxStartAttempts)
+            {
+                // A previous listener on the same configured port may still be tearing down
+                // (TIME_WAIT / handle-close lag) — short backoff and retry on the same port, since
+                // the port is operator-configured, not something this service can renegotiate.
+                _logger.LogWarning(ex, "ControllerHub portini bog'lashda vaqtinchalik xato, qayta urinilmoqda ({Attempt}/{Max})", attempt, MaxStartAttempts);
+                Thread.Sleep(TimeSpan.FromMilliseconds(100 * attempt));
+            }
+        }
+
         _acceptTask = Task.Run(() => AcceptLoopAsync(_cts.Token), _cts.Token);
         _pollTask = Task.Run(() => StatusPollLoopAsync(_cts.Token), _cts.Token);
         _logger.LogInformation("ControllerHub ishga tushdi: {Prefix}", _http.Prefixes.First());
@@ -76,7 +103,10 @@ public sealed class ControllerHubService : IAsyncDisposable
         _cts.Cancel();
         _http.Stop();
 
-        var tasks = new[] { _acceptTask, _pollTask }.Where(t => t is not null).Select(t => t!);
+        var tasks = new[] { _acceptTask, _pollTask }
+            .Where(t => t is not null)
+            .Select(t => t!)
+            .Concat(_connectionTasks.Keys);
         try
         {
             await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(5));
@@ -113,8 +143,7 @@ public sealed class ControllerHubService : IAsyncDisposable
             connection.PendingCommandId = commandId;
             connection.PendingResult = tcs;
 
-            var json = JsonSerializer.SerializeToUtf8Bytes(envelope, ControllerJsonOptions.Default);
-            await connection.Socket.SendAsync(new ArraySegment<byte>(json), WebSocketMessageType.Text, endOfMessage: true, ct);
+            await SendJsonAsync(connection, envelope, ct);
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeoutCts.CancelAfter(timeout);
@@ -138,6 +167,20 @@ public sealed class ControllerHubService : IAsyncDisposable
         }
     }
 
+    private static async Task SendJsonAsync(PcConnection connection, object envelope, CancellationToken ct)
+    {
+        var json = JsonSerializer.SerializeToUtf8Bytes(envelope, ControllerJsonOptions.Default);
+        await connection.SendLock.WaitAsync(ct);
+        try
+        {
+            await connection.Socket.SendAsync(new ArraySegment<byte>(json), WebSocketMessageType.Text, endOfMessage: true, ct);
+        }
+        finally
+        {
+            connection.SendLock.Release();
+        }
+    }
+
     private static CommandResultEnvelope OfflineResult(string commandName) => new(
         Constants.ControllerChannel.MessageType.CommandResult,
         CommandId: "cmd_" + Guid.NewGuid().ToString("N")[..12],
@@ -152,7 +195,13 @@ public sealed class ControllerHubService : IAsyncDisposable
             while (!ct.IsCancellationRequested)
             {
                 var context = await _http.GetContextAsync();
-                _ = Task.Run(() => HandleConnectionAsync(context, ct), ct);
+                var connectionTask = Task.Run(() => HandleConnectionAsync(context, ct), ct);
+                _connectionTasks[connectionTask] = 0;
+                _ = connectionTask.ContinueWith(
+                    t => _connectionTasks.TryRemove(t, out _),
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
             }
         }
         catch (HttpListenerException)
@@ -246,6 +295,17 @@ public sealed class ControllerHubService : IAsyncDisposable
         {
             _logger.LogWarning(ex, "WebSocket uzildi: {ExternalPcId}", connection.ExternalPcId);
         }
+        catch (HttpListenerException ex)
+        {
+            // Benign shutdown race: HttpListener.Stop()/Close() invalidated the underlying native
+            // handle while this ReceiveAsync had a pending IOCP completion against it — not a real
+            // connection failure.
+            _logger.LogDebug(ex, "HttpListener yopilishi bilan poyga (benign): {ExternalPcId}", connection.ExternalPcId);
+        }
+        catch (ObjectDisposedException ex)
+        {
+            _logger.LogDebug(ex, "Socket allaqachon dispose qilingan (benign): {ExternalPcId}", connection.ExternalPcId);
+        }
     }
 
     private async Task HandleIncomingMessageAsync(PcConnection connection, Stream body, CancellationToken ct)
@@ -269,7 +329,13 @@ public sealed class ControllerHubService : IAsyncDisposable
                 case Constants.ControllerChannel.MessageType.Event:
                     var eventEnvelope = root.Deserialize<EventEnvelope>(ControllerJsonOptions.Default);
                     if (eventEnvelope is not null)
-                        _stateStore.ApplyEvent(connection.ExternalPcId, eventEnvelope);
+                    {
+                        if (_eventIdempotency.TryMarkProcessed(eventEnvelope.EventId))
+                            _stateStore.ApplyEvent(connection.ExternalPcId, eventEnvelope);
+
+                        await SendJsonAsync(connection,
+                            new EventAckEnvelope(Constants.ControllerChannel.MessageType.EventAck, eventEnvelope.EventId), ct);
+                    }
                     break;
             }
         }

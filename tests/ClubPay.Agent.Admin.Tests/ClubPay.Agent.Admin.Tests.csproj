@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ClubPay.Agent.Admin\ClubPay.Agent.Admin.csproj" />
+    <ProjectReference Include="..\ClubPay.Agent.TestHarness\ClubPay.Agent.TestHarness.csproj" />
   </ItemGroup>
 
 </Project>

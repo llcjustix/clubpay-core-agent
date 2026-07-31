@@ -23,7 +23,20 @@ public sealed class ControllerChannelService : IControllerChannel
     private readonly string _webSocketUrl;
     private readonly string _agentToken;
     private readonly string _externalPcId;
+    private readonly TimeSpan _eventAckTimeout;
+    private readonly int _maxEventSendRetries;
     private readonly ILogger<ControllerChannelService> _logger;
+
+    // Correlates an in-flight durable-event send (SendLoopAsync's task) with the event_ack that
+    // completes it (ReceiveLoopAsync's task) — guarded by _ackGate since the two run concurrently.
+    private readonly object _ackGate = new();
+    private string? _pendingAckEventId;
+    private TaskCompletionSource<bool>? _pendingAckTcs;
+
+    // A WebSocket only tolerates one outstanding SendAsync at a time; SendLoopAsync (events) and
+    // ReceiveLoopAsync (command_result replies, now also nothing extra) both write to the same socket
+    // concurrently, so every raw send goes through this lock.
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
 
     private CancellationTokenSource? _lifetimeCts;
     private Task? _runLoopTask;
@@ -45,6 +58,10 @@ public sealed class ControllerChannelService : IControllerChannel
         _webSocketUrl = config["Controller:WebSocketUrl"] ?? string.Empty;
         _agentToken = config["Controller:AgentToken"] ?? string.Empty;
         _externalPcId = config["Controller:ExternalPcId"] ?? string.Empty;
+        _eventAckTimeout = TimeSpan.FromSeconds(
+            config.GetValue("Controller:EventAckTimeoutSeconds", Constants.ControllerChannel.SendTimeoutSeconds));
+        _maxEventSendRetries =
+            config.GetValue("Controller:MaxEventSendRetries", Constants.ControllerChannel.MaxSendRetries);
     }
 
     public Task StartAsync(CancellationToken ct = default)
@@ -100,6 +117,7 @@ public sealed class ControllerChannelService : IControllerChannel
     {
         await StopAsync();
         _lifetimeCts?.Dispose();
+        _sendLock.Dispose();
     }
 
     private async Task RunConnectionLoopAsync(CancellationToken ct)
@@ -197,39 +215,62 @@ public sealed class ControllerChannelService : IControllerChannel
             using var doc = await JsonDocument.ParseAsync(body, cancellationToken: ct);
             var root = doc.RootElement;
 
-            if (!root.TryGetProperty("type", out var typeProp) ||
-                typeProp.GetString() != Constants.ControllerChannel.MessageType.Command)
-            {
+            if (!root.TryGetProperty("type", out var typeProp))
                 return;
-            }
 
-            var name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() ?? string.Empty : string.Empty;
-            var commandId = root.TryGetProperty("command_id", out var idProp) ? idProp.GetString() ?? string.Empty : string.Empty;
-            var ts = root.TryGetProperty("ts", out var tsProp) && tsProp.TryGetDateTime(out var parsedTs)
-                ? parsedTs
-                : DateTime.UtcNow;
-            object? payload = root.TryGetProperty("payload", out var payloadProp) ? payloadProp.Clone() : null;
-
-            var command = new CommandEnvelope(Constants.ControllerChannel.MessageType.Command, name, commandId, ts, payload);
-            if (IncomingCommandHandler is not { } handler)
+            switch (typeProp.GetString())
             {
-                _logger.LogWarning("IncomingCommandHandler sozlanmagan — buyruq e'tiborsiz qoldirildi: {Name}", name);
-                return;
+                case Constants.ControllerChannel.MessageType.Command:
+                    await HandleCommandMessageAsync(socket, root, ct);
+                    break;
+
+                case Constants.ControllerChannel.MessageType.EventAck:
+                    HandleEventAck(root);
+                    break;
             }
-
-            var result = await handler(command, ct);
-
-            var json = JsonSerializer.SerializeToUtf8Bytes(result, ControllerJsonOptions.Default);
-            _logger.LogInformation(
-                "Command_result yuborildi: {Name} ({CommandId}) {Payload}",
-                name,
-                commandId,
-                JsonSerializer.Serialize(result, ControllerJsonOptions.Default));
-            await socket.SendAsync(new ArraySegment<byte>(json), WebSocketMessageType.Text, endOfMessage: true, ct);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Kiruvchi buyruqni qayta ishlashda xato");
+            _logger.LogWarning(ex, "Kiruvchi xabarni qayta ishlashda xato");
+        }
+    }
+
+    private async Task HandleCommandMessageAsync(ClientWebSocket socket, JsonElement root, CancellationToken ct)
+    {
+        var name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() ?? string.Empty : string.Empty;
+        var commandId = root.TryGetProperty("command_id", out var idProp) ? idProp.GetString() ?? string.Empty : string.Empty;
+        var ts = root.TryGetProperty("ts", out var tsProp) && tsProp.TryGetDateTime(out var parsedTs)
+            ? parsedTs
+            : DateTime.UtcNow;
+        object? payload = root.TryGetProperty("payload", out var payloadProp) ? payloadProp.Clone() : null;
+
+        var command = new CommandEnvelope(Constants.ControllerChannel.MessageType.Command, name, commandId, ts, payload);
+        if (IncomingCommandHandler is not { } handler)
+        {
+            _logger.LogWarning("IncomingCommandHandler sozlanmagan — buyruq e'tiborsiz qoldirildi: {Name}", name);
+            return;
+        }
+
+        var result = await handler(command, ct);
+
+        _logger.LogInformation(
+            "Command_result yuborildi: {Name} ({CommandId}) {Payload}",
+            name,
+            commandId,
+            JsonSerializer.Serialize(result, ControllerJsonOptions.Default));
+        await SendJsonAsync(socket, result, ct);
+    }
+
+    private void HandleEventAck(JsonElement root)
+    {
+        var eventId = root.TryGetProperty("event_id", out var idProp) ? idProp.GetString() : null;
+        if (eventId is null)
+            return;
+
+        lock (_ackGate)
+        {
+            if (_pendingAckEventId == eventId)
+                _pendingAckTcs?.TrySetResult(true);
         }
     }
 
@@ -258,9 +299,16 @@ public sealed class ControllerChannelService : IControllerChannel
                     if (socket.State != WebSocketState.Open || ct.IsCancellationRequested)
                         return;
 
-                    var json = JsonSerializer.SerializeToUtf8Bytes(evt, ControllerJsonOptions.Default);
-                    await socket.SendAsync(new ArraySegment<byte>(json), WebSocketMessageType.Text, endOfMessage: true, ct);
-                    await _outbox.MarkSentAsync(evt.EventId, ct);
+                    if (Constants.ControllerChannel.IsTelemetryEvent(evt.Name))
+                    {
+                        await SendJsonAsync(socket, evt, ct);
+                        await _outbox.MarkSentAsync(evt.EventId, ct);
+                        continue;
+                    }
+
+                    if (!await SendDurableEventWithAckAsync(socket, evt, ct))
+                        return; // retries exhausted — tear the connection down; the next connection's
+                                // fresh SendLoopAsync call resends this same still-pending row at attempt 1
                 }
             }
         }
@@ -270,6 +318,79 @@ public sealed class ControllerChannelService : IControllerChannel
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Yuborish tsiklida xato — qayta ulanish kutilmoqda");
+        }
+    }
+
+    /// <summary>Stop-and-wait delivery for a durable (money/session) event: sends, waits up to
+    /// _eventAckTimeout for a correlated event_ack, and retries the same event on timeout up to
+    /// _maxEventSendRetries times. Never advances to the next pending event until this one is acked or
+    /// retries are exhausted — that single-event-in-flight rule is what keeps outbox ordering intact.
+    /// Returns false once retries are exhausted (caller must tear the connection down and let reconnect
+    /// pick this event up fresh).</summary>
+    private async Task<bool> SendDurableEventWithAckAsync(ClientWebSocket socket, EventEnvelope evt, CancellationToken ct)
+    {
+        for (var attempt = 1; attempt <= _maxEventSendRetries; attempt++)
+        {
+            var ackTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_ackGate)
+            {
+                _pendingAckEventId = evt.EventId;
+                _pendingAckTcs = ackTcs;
+            }
+
+            try
+            {
+                await SendJsonAsync(socket, evt, ct);
+
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeoutCts.CancelAfter(_eventAckTimeout);
+                await ackTcs.Task.WaitAsync(timeoutCts.Token);
+
+                await _outbox.MarkSentAsync(evt.EventId, ct);
+                return true;
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                _logger.LogWarning(
+                    "event_ack kutish vaqti tugadi: {Name} ({EventId}), urinish {Attempt}/{Max}",
+                    evt.Name, evt.EventId, attempt, _maxEventSendRetries);
+            }
+            finally
+            {
+                // Identity check, not just event_id equality: if this connection attempt was abandoned
+                // (e.g. RunConnectionLoopAsync already tore it down after a hard disconnect) while this
+                // call was still waiting, a *new* connection's SendDurableEventWithAckAsync call for the
+                // same still-pending event_id may already have registered its own TCS by the time this
+                // orphaned attempt reaches here. Clearing unconditionally on event_id match would wipe
+                // out that newer wait out from under it, causing its real ack to be silently dropped.
+                lock (_ackGate)
+                {
+                    if (ReferenceEquals(_pendingAckTcs, ackTcs))
+                    {
+                        _pendingAckEventId = null;
+                        _pendingAckTcs = null;
+                    }
+                }
+            }
+        }
+
+        _logger.LogWarning(
+            "event_ack olinmadi, urinishlar tugadi — ulanish qayta o'rnatiladi: {Name} ({EventId})",
+            evt.Name, evt.EventId);
+        return false;
+    }
+
+    private async Task SendJsonAsync(ClientWebSocket socket, object envelope, CancellationToken ct)
+    {
+        var json = JsonSerializer.SerializeToUtf8Bytes(envelope, ControllerJsonOptions.Default);
+        await _sendLock.WaitAsync(ct);
+        try
+        {
+            await socket.SendAsync(new ArraySegment<byte>(json), WebSocketMessageType.Text, endOfMessage: true, ct);
+        }
+        finally
+        {
+            _sendLock.Release();
         }
     }
 
