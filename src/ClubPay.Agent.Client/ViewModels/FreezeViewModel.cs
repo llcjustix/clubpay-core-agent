@@ -2,6 +2,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ClubPay.Agent.Core;
+using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Client.Services;
 
 namespace ClubPay.Agent.Client.ViewModels;
@@ -31,22 +32,25 @@ public partial class FreezeViewModel : ObservableObject
         _timer.Tick += (_, _) => Refresh();
     }
 
-    /// <summary>untilUtc is the grace deadline the coordinator computed; sessionIdHex (if any) makes the
-    /// QR session-bound so a photographed/replayed code can't be reused on another PC/session.</summary>
-    public void ShowGrace(DateTime untilUtc, string? sessionIdHex = null)
+    /// <summary>untilUtc is the grace deadline the coordinator computed. The URL itself is supplied
+    /// by Core and is bound to this specific session, so the Agent never creates a reusable URL.</summary>
+    public void ShowGrace(DateTime untilUtc, Session? session = null)
     {
         _untilUtc = untilUtc;
 
-        var extendUrl = string.IsNullOrEmpty(sessionIdHex)
-            ? "https://pay.clubpay.uz/"
-            : $"https://pay.clubpay.uz/?session={sessionIdHex}";
-        ExtendQrImage = _qr.Generate(extendUrl, 320);
+        ExtendQrImage = string.IsNullOrWhiteSpace(session?.ExtendUrl)
+            ? null
+            : _qr.Generate(session.ExtendUrl, 320);
 
         Refresh();
         _timer.Start();
     }
 
-    public void Stop() => _timer.Stop();
+    public void Stop()
+    {
+        _timer.Stop();
+        ExtendQrImage = null;
+    }
 
     private void Refresh()
     {

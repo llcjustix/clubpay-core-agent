@@ -40,14 +40,25 @@ public partial class LockScreenViewModel : ObservableObject
         _clock.Tick += (_, _) => CurrentTime = DateTime.Now.ToString("HH:mm");
         _clock.Start();
 
+        _agent.StaticPaymentQrUrlChanged += RefreshPaymentQr;
         GenerateQrCodes();
     }
 
     private void GenerateQrCodes()
     {
-        var payUrl = $"https://pay.clubpay.uz/?pc={Uri.EscapeDataString(PcId)}";
-        PayQrImage = _qr.Generate(payUrl, 300);
+        PayQrImage = string.IsNullOrWhiteSpace(_agent.StaticPaymentQrUrl)
+            ? null
+            : _qr.Generate(_agent.StaticPaymentQrUrl, 300);
         WifiQrImage = _qr.GenerateWifi(_agent.WifiSsid, _agent.WifiPassword, pixelSize: 108);
+    }
+
+    private void RefreshPaymentQr()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            GenerateQrCodes();
+        else
+            _ = dispatcher.InvokeAsync(GenerateQrCodes);
     }
 
     /// <summary>Called by MainViewModel whenever the coordinator reports a fresh transition to Locked.</summary>

@@ -29,6 +29,7 @@ public partial class App : Application
         var config = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+            .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false)
             .Build();
 
         var sc = new ServiceCollection();
@@ -73,6 +74,10 @@ public partial class App : Application
         await _services.GetRequiredService<AgentStateRepository>().LoadAsync(_startupCts.Token);
         await _services.GetRequiredService<ISessionCoordinator>().StartAsync(_startupCts.Token);
         await _services.GetRequiredService<IControllerChannel>().StartAsync(_startupCts.Token);
+        // Bootstrap is deliberately non-blocking: a transient Core/network outage must not keep a
+        // Windows PC from reaching its locked kiosk screen. LockScreenViewModel refreshes its QR
+        // when the backend response eventually arrives.
+        _ = _services.GetRequiredService<IAgentService>().RefreshStaticPaymentQrUrlAsync(_startupCts.Token);
 
         _ = _services.GetRequiredService<SessionOverlayWindow>();
         _ = _services.GetRequiredService<GameLauncherWindow>();  // creates Instance

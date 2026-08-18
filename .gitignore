@@ -4,6 +4,7 @@
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
 .idea
+appsettings.Local.json
 
 # User-specific files
 *.rsuser
@@ -372,3 +373,8 @@ FodyWeavers.xsd
 /WebApi/CronJobApi/hangfire/hf-log.db
 /WebApi/CronJobApi/hangfire/hf.db
 CLAUDE.md
+
+# Keep repository CI despite the legacy blanket YAML ignore above.
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml

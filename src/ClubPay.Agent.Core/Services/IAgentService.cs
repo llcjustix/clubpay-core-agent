@@ -12,6 +12,13 @@ public interface IAgentService
     string ClubName { get; }
     string WifiSsid { get; }
     string WifiPassword { get; }
+    /// <summary>The public static payment QR URL returned by Core bootstrap for this PC.</summary>
+    string? StaticPaymentQrUrl { get; }
+    event Action? StaticPaymentQrUrlChanged;
+
+    /// <summary>Loads the static, backend-issued QR URL for this PC. A configured local fallback
+    /// is retained if Core is temporarily unreachable.</summary>
+    Task RefreshStaticPaymentQrUrlAsync(CancellationToken ct = default);
 
     Task SleepAsync(CancellationToken ct = default);
 

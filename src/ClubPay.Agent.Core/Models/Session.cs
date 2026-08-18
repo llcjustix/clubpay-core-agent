@@ -9,7 +9,9 @@ public record Session(
     Guid? CoreSessionId = null,
     string? GrantId = null,
     DateTime? EndsAtUtc = null,
-    string? Zone = null
+    string? Zone = null,
+    // Comes from Core in start_session. It is invalidated by Core when this session ends.
+    string? ExtendUrl = null
 )
 {
     // Wall-clock (UTC) diffing is the primary timing mechanism (contract: agent computes the

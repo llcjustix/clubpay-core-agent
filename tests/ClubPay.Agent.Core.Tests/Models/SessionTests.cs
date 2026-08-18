@@ -37,4 +37,17 @@ public class SessionTests
 
         Assert.Equal(2600, session.RemainingSeconds(now));
     }
+
+    [Fact]
+    public void Constructor_WhenBackendIssuedExtendUrlProvided_PreservesIt()
+    {
+        var tariff = new Tariff(Guid.NewGuid(), "1 soat", ZoneType.Standard, 60, 1_500_000);
+        const string extendUrl = "https://clubpay.justix.uz/qr/extend-session-token";
+
+        var session = new Session(
+            Guid.NewGuid(), "pc-001", tariff, DateTime.UtcNow, 3600,
+            ExtendUrl: extendUrl);
+
+        Assert.Equal(extendUrl, session.ExtendUrl);
+    }
 }

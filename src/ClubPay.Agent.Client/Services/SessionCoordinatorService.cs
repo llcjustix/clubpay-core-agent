@@ -123,7 +123,8 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
             var tariff = new Tariff(coreSessionId, payload.Zone ?? "Standard", zone, payload.GrantedSeconds / 60, 0);
             var session = new Session(
                 Guid.NewGuid(), payload.ExternalPcId, tariff, payload.StartAt ?? now, payload.GrantedSeconds,
-                CoreSessionId: coreSessionId, GrantId: payload.GrantId, EndsAtUtc: payload.EndsAt, Zone: payload.Zone);
+                CoreSessionId: coreSessionId, GrantId: payload.GrantId, EndsAtUtc: payload.EndsAt, Zone: payload.Zone,
+                ExtendUrl: payload.ExtendUrl);
 
             await _store.SaveAsync(session, ct);
             await _idempotency.RecordAppliedAsync(payload.GrantId, ct);

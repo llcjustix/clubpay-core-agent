@@ -1,0 +1,20 @@
+name: Build and test ClubPay Agent
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore ClubPay.Agent.slnx
+      - name: Test
+        run: dotnet test ClubPay.Agent.slnx --configuration Release --no-restore
+      - name: Build Agent
+        run: dotnet build src/ClubPay.Agent.Client/ClubPay.Agent.Client.csproj --configuration Release --no-restore

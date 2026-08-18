@@ -86,6 +86,21 @@ public class SessionCoordinatorServiceTests
     }
 
     [Fact]
+    public async Task StartSessionAsync_PersistsBackendIssuedExtendUrl()
+    {
+        var m = new Mocks();
+        var sut = m.BuildSut();
+        const string extendUrl = "https://clubpay.justix.uz/qr/extend-session-token";
+        var payload = MakeStartPayload() with { ExtendUrl = extendUrl };
+
+        await sut.StartSessionAsync(payload);
+
+        m.Store.Verify(s => s.SaveAsync(
+            It.Is<Session>(session => session.ExtendUrl == extendUrl),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task StartSessionAsync_WhenAlreadyActive_ThrowsPcBusy()
     {
         var m = new Mocks();
