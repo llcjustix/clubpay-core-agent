@@ -19,18 +19,16 @@ $output = Join-Path $root 'Agent'
 
 New-Item -ItemType Directory -Force -Path $root | Out-Null
 
-Invoke-WebRequest -UseBasicParsing `
-    -Uri 'https://github.com/llcjustix/clubpay-core-agent/archive/refs/heads/main.zip' `
-    -OutFile $sourceZip
+& curl.exe -fL 'https://github.com/llcjustix/clubpay-core-agent/archive/refs/heads/main.zip' -o $sourceZip
+if ($LASTEXITCODE -ne 0) { throw 'Unable to download Agent source archive.' }
 
 if (Test-Path $sourceRoot) {
     Remove-Item -Recurse -Force $sourceRoot
 }
 Expand-Archive -LiteralPath $sourceZip -DestinationPath $root -Force
 
-Invoke-WebRequest -UseBasicParsing `
-    -Uri 'https://dot.net/v1/dotnet-install.ps1' `
-    -OutFile (Join-Path $root 'dotnet-install.ps1')
+& curl.exe -fL 'https://dot.net/v1/dotnet-install.ps1' -o (Join-Path $root 'dotnet-install.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Unable to download the .NET installer.' }
 
 & (Join-Path $root 'dotnet-install.ps1') -Channel 10.0 -InstallDir $dotnetRoot -NoPath
 
