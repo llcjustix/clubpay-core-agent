@@ -35,6 +35,9 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
 
     private readonly SemaphoreSlim _stateLock = new(1, 1);
     private readonly HashSet<int> _firedThresholds = [];
+    // Voice prompts are tracked separately from protocol time_low events. The backend may consume
+    // time_low at its own thresholds, while the player must hear 30/10/5-minute notices exactly once.
+    private readonly HashSet<int> _firedVoiceThresholds = [];
     private Timer? _ticker;
     private int? _lastRemainingSeconds;
     private bool _isAsleep;
@@ -140,6 +143,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
             CurrentSession = session;
             State = AgentState.Active;
             _firedThresholds.Clear();
+            _firedVoiceThresholds.Clear();
             _lastRemainingSeconds = session.RemainingSeconds(now);
             _idle.Stop();
             _kioskLock.SetMode(KioskLockMode.Session);
@@ -189,6 +193,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
             await _idempotency.RecordAppliedAsync(payload.GrantId, ct);
             CurrentSession = updated;
             _firedThresholds.Clear();
+            _firedVoiceThresholds.Clear();
             _lastRemainingSeconds = updated.RemainingSeconds(now);
 
             bool wasFrozen = State == AgentState.Frozen;
@@ -470,12 +475,24 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
                     }
                 }
 
-                var previousRemaining = _lastRemainingSeconds ?? remaining + 1;
+                var previousRemaining = _lastRemainingSeconds ?? remaining;
+                // >= is intentional. If the Agent restarts while the timer is exactly at a
+                // threshold (for example 05:00), the next tick must still announce it rather
+                // than silently moving to 04:59 and losing the reminder forever.
                 var crossedVoiceThreshold = VoiceThresholds
-                    .Where(threshold => previousRemaining > threshold && remaining <= threshold)
+                    .Where(threshold =>
+                        !_firedVoiceThresholds.Contains(threshold) &&
+                        remaining > 0 &&
+                        previousRemaining >= threshold &&
+                        remaining <= threshold)
                     .LastOrDefault();
                 if (crossedVoiceThreshold > 0)
+                {
+                    _firedVoiceThresholds.Add(crossedVoiceThreshold);
+                    _logger.LogInformation("Announcing {ThresholdSeconds}s remaining for session {SessionId}",
+                        crossedVoiceThreshold, session.CoreSessionId ?? session.Id);
                     await _voice.AnnounceRemainingTimeAsync(crossedVoiceThreshold, CancellationToken.None);
+                }
                 _lastRemainingSeconds = remaining;
 
                 if (remaining == 0)
