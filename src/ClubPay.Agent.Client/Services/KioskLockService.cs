@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Win32;
 using ClubPay.Agent.Core.Services;
 
@@ -6,6 +7,7 @@ namespace ClubPay.Agent.Client.Services;
 
 public sealed class KioskLockService : IKioskLockService
 {
+    private readonly bool _lockdownEnabled;
     private nint _hookHandle;
     // Field prevents GC from collecting the delegate while hook is active
     private NativeKiosk.LowLevelKeyboardProc? _hookProc;
@@ -13,8 +15,21 @@ public sealed class KioskLockService : IKioskLockService
     // volatile: hook callback runs on the message-pump thread, SetMode from UI thread
     private volatile KioskLockMode _mode = KioskLockMode.Full;
 
+    public KioskLockService(IConfiguration configuration)
+    {
+        // Secure-by-default for real club PCs. Development VMs explicitly opt out in
+        // appsettings.Local.json, which also clears a policy left by an earlier run.
+        _lockdownEnabled = configuration.GetValue("Agent:KioskLockdownEnabled", true);
+    }
+
     public void Install()
     {
+        if (!_lockdownEnabled)
+        {
+            ApplyRegistry(enable: false);
+            return;
+        }
+
         ApplyRegistry(enable: true);
         _hookProc   = HookCallback;
         _hookHandle = NativeKiosk.SetWindowsHookEx(

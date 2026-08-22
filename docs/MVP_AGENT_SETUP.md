@@ -17,6 +17,24 @@ run a local Controller or expose an inbound port.
 
 For a staging VM, use `--install` only. Do **not** enable `--shell` or `--autologin` while testing.
 
+## Maintenance mode for a test VM
+
+The production default is a locked kiosk: Task Manager and common Windows escape shortcuts are
+blocked. Do not weaken that setting on real club PCs.
+
+For a development VM only, add the following to `appsettings.Local.json` next to the executable:
+
+```json
+"Agent": {
+  "KioskLockdownEnabled": false,
+  "MaintenanceExitEnabled": true
+}
+```
+
+Restart the Agent after changing the file. In this mode, **Ctrl+Shift+F12** closes the Agent
+cleanly and returns to Windows, including removal of any kiosk policy left by a previous run.
+`appsettings.Local.json` must never be copied to a real club PC with those values.
+
 ## MVP acceptance flow
 
 1. Agent connects: Core shows the PC as online/free; its lock screen displays the static QR.
