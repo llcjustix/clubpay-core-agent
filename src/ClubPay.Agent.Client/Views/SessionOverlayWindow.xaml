@@ -7,7 +7,7 @@
         Width="380" SizeToContent="Height">
 
   <StackPanel>
-    <views:ActiveSessionView DataContext="{Binding ActiveSession}"/>
+    <views:ActiveSessionView x:Name="ActiveSessionControl" DataContext="{Binding ActiveSession}"/>
 
     <!-- Shown only when a game is running; user taps to return to launcher -->
     <Button x:Name="ReturnBtn"

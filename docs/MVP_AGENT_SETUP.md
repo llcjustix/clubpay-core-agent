@@ -46,14 +46,24 @@ cleanly and returns to Windows, including removal of any kiosk policy left by a 
 4. Scan the static QR while the PC is busy: Core must reject new payment/session creation.
 5. Let the timer expire: the Agent enters FROZEN for the configured grace period and shows the same
    dynamic extension QR. A successful extension restores the active session.
-6. End the session: its dynamic extension QR is no longer accepted by Core.
-7. Restart the Agent: it reconnects and recovers persisted active session state. A real sleeping PC
+6. During an active session, open the `⋮` menu in the overlay and choose **Завершить сеанс**. Enter
+   the phone number and confirm Telegram consent. Core instructs the Agent to end the session,
+   locks the PC and creates a voucher for the unused seconds — exactly as when a manager ends a
+   session in the admin panel. If this number is already linked to the Telegram bot, the voucher is
+   sent immediately. Otherwise the Agent displays a Telegram QR: the player opens the bot and taps
+   Start, after which Core automatically sends the pending voucher.
+7. After the session has ended, its dynamic extension QR is no longer accepted by Core.
+8. Restart the Agent: it reconnects and recovers persisted active session state. A real sleeping PC
    is awakened by Controller/DevOps via Wake-on-LAN; once Windows starts, the Agent reconnects.
 
 Core is the only source of the FROZEN grace duration: it sends `grace_seconds` with `start_session`.
 The Agent persists and applies that value for the whole session. The current default is 180 seconds.
 The Agent also announces 30, 10 and 5 minutes remaining through the Windows voice service; this can
 be disabled per PC with `Agent:VoiceAnnouncementsEnabled`.
+
+The real club-PC kiosk hides Windows controls. Do not expose Windows settings or Task Manager to a
+player. The overlay menu is deliberately limited to player actions; club staff can manage Windows
+through their separate maintenance workflow.
 
 ## Required environment, outside the Agent repository
 

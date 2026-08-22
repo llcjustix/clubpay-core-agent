@@ -36,13 +36,13 @@
             <TextBlock Text="NEXUS ARENA" Foreground="White"
                        FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Bold"/>
           </StackPanel>
-          <!-- Minimize icon -->
-          <Border Grid.Column="1" Width="32" Height="32" CornerRadius="8"
+          <!-- Player menu. Windows controls stay hidden; player actions live here instead. -->
+          <Button Grid.Column="1" Width="32" Height="32" Padding="0"
                   Background="#0FFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
-                  Cursor="Hand">
-            <Rectangle Width="16" Height="2" Fill="{StaticResource TextSecondary}"
+                  Cursor="Hand" Click="OnMenuClicked" ToolTip="Меню">
+            <TextBlock Text="⋮" FontSize="20" Foreground="{StaticResource TextSecondary}"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
-          </Border>
+          </Button>
         </Grid>
 
         <!-- Status indicator -->
@@ -157,6 +157,12 @@
         </Grid>
       </StackPanel>
     </Border>
+
+    <ContextMenu x:Name="SessionMenu" Placement="Bottom">
+      <MenuItem Header="Вернуться к играм" Click="OnReturnToLauncherClicked"/>
+      <Separator/>
+      <MenuItem Header="Завершить сеанс" Click="OnEndSessionClicked"/>
+    </ContextMenu>
 
   </StackPanel>
 </UserControl>
