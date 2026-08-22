@@ -12,8 +12,11 @@ public partial class ActiveSessionView : UserControl
 
     private void OnMenuClicked(object sender, RoutedEventArgs e)
     {
-        SessionMenu.PlacementTarget = sender as UIElement;
-        SessionMenu.IsOpen = true;
+        if (sender is not Control control || control.ContextMenu is not { } menu)
+            return;
+
+        menu.PlacementTarget = control;
+        menu.IsOpen = true;
     }
 
     private void OnReturnToLauncherClicked(object sender, RoutedEventArgs e)

@@ -42,6 +42,13 @@
                   Cursor="Hand" Click="OnMenuClicked" ToolTip="Меню">
             <TextBlock Text="⋮" FontSize="20" Foreground="{StaticResource TextSecondary}"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Button.ContextMenu>
+              <ContextMenu>
+                <MenuItem Header="Вернуться к играм" Click="OnReturnToLauncherClicked"/>
+                <Separator/>
+                <MenuItem Header="Завершить сеанс" Click="OnEndSessionClicked"/>
+              </ContextMenu>
+            </Button.ContextMenu>
           </Button>
         </Grid>
 
@@ -157,12 +164,6 @@
         </Grid>
       </StackPanel>
     </Border>
-
-    <ContextMenu x:Name="SessionMenu" Placement="Bottom">
-      <MenuItem Header="Вернуться к играм" Click="OnReturnToLauncherClicked"/>
-      <Separator/>
-      <MenuItem Header="Завершить сеанс" Click="OnEndSessionClicked"/>
-    </ContextMenu>
 
   </StackPanel>
 </UserControl>
