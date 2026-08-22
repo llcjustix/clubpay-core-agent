@@ -146,6 +146,7 @@ shunga o'xshash **kiruvchi** xabar paydo bo'ladi:
     "external_pc_id": "club12-pc07",
     "grant_id": "grant_1a2b3c4d",
     "granted_seconds": 3600,
+    "grace_seconds": 180,
     "ends_at": "2026-07-10T13:00:01Z",
     "zone": "Standard",
     "start_at": "2026-07-10T12:00:01Z"

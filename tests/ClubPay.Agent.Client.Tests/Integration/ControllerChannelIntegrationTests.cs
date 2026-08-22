@@ -65,6 +65,7 @@ public sealed class ControllerChannelIntegrationTests : IAsyncDisposable
         sc.AddSingleton(Mock.Of<IProcessCleanupService>());
         sc.AddSingleton(Mock.Of<IIdleDetectionService>());
         sc.AddSingleton<ISystemClock, SystemClock>();
+        sc.AddSingleton(Mock.Of<IVoiceAnnouncementService>());
         sc.AddSingleton<ISessionCoordinator, SessionCoordinatorService>();
         sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();
         sc.AddSingleton<IControllerChannel, ControllerChannelService>();

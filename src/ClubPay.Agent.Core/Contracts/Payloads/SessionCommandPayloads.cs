@@ -14,7 +14,9 @@ public sealed record StartSessionPayload(
     DateTime? StartAt,
     // A short-lived, backend-issued URL for the currently active session. The Agent only displays
     // it and must never attempt to manufacture a replacement URL locally.
-    string? ExtendUrl = null);
+    string? ExtendUrl = null,
+    // Core owns the grace duration. Zero is accepted only for compatibility with older Core versions.
+    int GraceSeconds = 0);
 
 /// <summary>Contract §4.2 extend_session payload.</summary>
 public sealed record ExtendSessionPayload(

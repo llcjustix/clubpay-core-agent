@@ -20,6 +20,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
 {
     private static readonly int[] TimeLowThresholds =
         [Constants.Timer.WarnAt10Min, Constants.Timer.WarnAt5Min, Constants.Timer.WarnAt1Min];
+    private static readonly int[] VoiceThresholds = [1800, 600, 300];
 
     private readonly ISessionStore _store;
     private readonly IGrantIdempotencyStore _idempotency;
@@ -29,11 +30,13 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
     private readonly IProcessCleanupService _processCleanup;
     private readonly IIdleDetectionService _idle;
     private readonly ISystemClock _clock;
+    private readonly IVoiceAnnouncementService _voice;
     private readonly ILogger<SessionCoordinatorService> _logger;
 
     private readonly SemaphoreSlim _stateLock = new(1, 1);
     private readonly HashSet<int> _firedThresholds = [];
     private Timer? _ticker;
+    private int? _lastRemainingSeconds;
     private bool _isAsleep;
     private int _secondsSinceHeartbeat;
 
@@ -55,6 +58,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         IProcessCleanupService processCleanup,
         IIdleDetectionService idle,
         ISystemClock clock,
+        IVoiceAnnouncementService voice,
         ILogger<SessionCoordinatorService> logger)
     {
         _store = store;
@@ -65,6 +69,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         _processCleanup = processCleanup;
         _idle = idle;
         _clock = clock;
+        _voice = voice;
         _logger = logger;
 
         _idle.IdleThresholdReached += OnIdleThresholdReached;
@@ -91,6 +96,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         {
             State = AgentState.Active;
             _kioskLock.SetMode(KioskLockMode.Session);
+            _lastRemainingSeconds = CurrentSession.RemainingSeconds(_clock.UtcNow);
         }
 
         if (State == AgentState.Locked)
@@ -118,13 +124,15 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
                 throw new SessionCommandException(ErrorCode.PcBusy, "pc already has an active session");
 
             var now = _clock.UtcNow;
+            var graceSeconds = payload.GraceSeconds > 0 ? payload.GraceSeconds : Constants.Timer.GracePeriod;
             var coreSessionId = Guid.NewGuid();
             var zone = ParseZone(payload.Zone);
             var tariff = new Tariff(coreSessionId, payload.Zone ?? "Standard", zone, payload.GrantedSeconds / 60, 0);
             var session = new Session(
                 Guid.NewGuid(), payload.ExternalPcId, tariff, payload.StartAt ?? now, payload.GrantedSeconds,
                 CoreSessionId: coreSessionId, GrantId: payload.GrantId, EndsAtUtc: payload.EndsAt, Zone: payload.Zone,
-                ExtendUrl: payload.ExtendUrl);
+                ExtendUrl: payload.ExtendUrl,
+                GraceSeconds: graceSeconds);
 
             await _store.SaveAsync(session, ct);
             await _idempotency.RecordAppliedAsync(payload.GrantId, ct);
@@ -132,6 +140,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
             CurrentSession = session;
             State = AgentState.Active;
             _firedThresholds.Clear();
+            _lastRemainingSeconds = session.RemainingSeconds(now);
             _idle.Stop();
             _kioskLock.SetMode(KioskLockMode.Session);
             _processCleanup.SnapshotBaseline();
@@ -180,6 +189,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
             await _idempotency.RecordAppliedAsync(payload.GrantId, ct);
             CurrentSession = updated;
             _firedThresholds.Clear();
+            _lastRemainingSeconds = updated.RemainingSeconds(now);
 
             bool wasFrozen = State == AgentState.Frozen;
             State = AgentState.Active;
@@ -338,6 +348,7 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
         FrozenUntilUtc = null;
         State = AgentState.Locked;
         _firedThresholds.Clear();
+        _lastRemainingSeconds = null;
         _idle.Start();
 
         var coreIdText = session.CoreSessionId?.ToString("N") ?? session.Id.ToString("N");
@@ -447,9 +458,9 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
 
             if (State == AgentState.Active && CurrentSession is { } session)
             {
+                int remaining = session.RemainingSeconds(now);
                 foreach (var threshold in TimeLowThresholds)
                 {
-                    int remaining = session.RemainingSeconds(now);
                     if (remaining > 0 && remaining <= threshold && _firedThresholds.Add(threshold))
                     {
                         var coreIdText = session.CoreSessionId?.ToString("N") ?? session.Id.ToString("N");
@@ -459,10 +470,19 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
                     }
                 }
 
-                if (session.IsExpired(now))
+                var previousRemaining = _lastRemainingSeconds ?? remaining + 1;
+                var crossedVoiceThreshold = VoiceThresholds
+                    .Where(threshold => previousRemaining > threshold && remaining <= threshold)
+                    .LastOrDefault();
+                if (crossedVoiceThreshold > 0)
+                    await _voice.AnnounceRemainingTimeAsync(crossedVoiceThreshold, CancellationToken.None);
+                _lastRemainingSeconds = remaining;
+
+                if (remaining == 0)
                 {
                     State = AgentState.Frozen;
-                    FrozenUntilUtc = now.AddSeconds(Constants.Timer.GracePeriod);
+                    FrozenUntilUtc = now.AddSeconds(session.GraceSeconds);
+                    _lastRemainingSeconds = 0;
                     _kioskLock.SetMode(KioskLockMode.Full);
                     RaiseStateChanged();
                     await PublishPcStateChangedAsync(CancellationToken.None);

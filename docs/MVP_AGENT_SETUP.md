@@ -32,6 +32,11 @@ For a staging VM, use `--install` only. Do **not** enable `--shell` or `--autolo
 7. Restart the Agent: it reconnects and recovers persisted active session state. A real sleeping PC
    is awakened by Controller/DevOps via Wake-on-LAN; once Windows starts, the Agent reconnects.
 
+Core is the only source of the FROZEN grace duration: it sends `grace_seconds` with `start_session`.
+The Agent persists and applies that value for the whole session. The current default is 180 seconds.
+The Agent also announces 30, 10 and 5 minutes remaining through the Windows voice service; this can
+be disabled per PC with `Agent:VoiceAnnouncementsEnabled`.
+
 ## Required environment, outside the Agent repository
 
 - Windows VM or physical Windows PC with outbound HTTPS/WSS port 443 to Core.

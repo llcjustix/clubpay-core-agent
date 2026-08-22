@@ -17,8 +17,9 @@ public partial class FreezeViewModel : ObservableObject
     private readonly QrCodeService _qr;
     private readonly DispatcherTimer _timer;
     private DateTime _untilUtc;
+    private int _totalGraceSeconds = Constants.Timer.GracePeriod;
 
-    [ObservableProperty] private string _graceTimeText = "10:00";
+    [ObservableProperty] private string _graceTimeText = "03:00";
     [ObservableProperty] private int _graceRemainingSeconds = Constants.Timer.GracePeriod;
     [ObservableProperty] private double _graceBarWidth = 520;
 
@@ -37,6 +38,7 @@ public partial class FreezeViewModel : ObservableObject
     public void ShowGrace(DateTime untilUtc, Session? session = null)
     {
         _untilUtc = untilUtc;
+        _totalGraceSeconds = Math.Max(1, session?.GraceSeconds ?? Constants.Timer.GracePeriod);
 
         ExtendQrImage = string.IsNullOrWhiteSpace(session?.ExtendUrl)
             ? null
@@ -57,7 +59,7 @@ public partial class FreezeViewModel : ObservableObject
         int remaining = (int)Math.Max(0, (_untilUtc - DateTime.UtcNow).TotalSeconds);
         GraceRemainingSeconds = remaining;
         GraceTimeText = FormatTime(remaining);
-        GraceBarWidth = 520.0 * remaining / Constants.Timer.GracePeriod;
+        GraceBarWidth = 520.0 * remaining / _totalGraceSeconds;
 
         if (remaining == 0)
             _timer.Stop();

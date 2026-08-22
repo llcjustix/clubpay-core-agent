@@ -11,7 +11,9 @@ public record Session(
     DateTime? EndsAtUtc = null,
     string? Zone = null,
     // Comes from Core in start_session. It is invalidated by Core when this session ends.
-    string? ExtendUrl = null
+    string? ExtendUrl = null,
+    // Persist the backend-provided grace duration so a restart cannot change an active session's rules.
+    int GraceSeconds = Constants.Timer.GracePeriod
 )
 {
     // Wall-clock (UTC) diffing is the primary timing mechanism (contract: agent computes the

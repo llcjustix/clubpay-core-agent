@@ -34,7 +34,8 @@ public sealed class TimerToBrushConverter : IValueConverter
         return seconds switch
         {
             <= 60 => new SolidColorBrush(Color.FromRgb(0xFF, 0x3B, 0x5C)),  // red
-            <= 300 => new SolidColorBrush(Color.FromRgb(0xFF, 0xD6, 0x0A)),  // yellow
+            <= 300 => new SolidColorBrush(Color.FromRgb(0xFF, 0x8A, 0x0A)),  // orange
+            <= 600 => new SolidColorBrush(Color.FromRgb(0xFF, 0xD6, 0x0A)),  // yellow
             _ => new SolidColorBrush(Color.FromRgb(0x00, 0xFF, 0x88)),  // green
         };
     }

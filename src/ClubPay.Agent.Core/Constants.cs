@@ -7,7 +7,8 @@ public static class Constants
         public const int WarnAt10Min = 600;
         public const int WarnAt5Min = 300;
         public const int WarnAt1Min = 60;
-        public const int GracePeriod = 600;  // 10 min freeze grace
+        // Fallback for compatibility with an older Core. New sessions receive grace_seconds from Core.
+        public const int GracePeriod = 180;
         public const int IdleSleep = 600;  // 10 min idle → S3
     }
 

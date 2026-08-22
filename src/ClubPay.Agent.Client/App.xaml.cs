@@ -49,6 +49,7 @@ public partial class App : Application
         sc.AddSingleton<IProcessCleanupService, ProcessCleanupService>();
         sc.AddSingleton<IIdleDetectionService, IdleDetectionService>();
         sc.AddSingleton<ISystemClock, SystemClock>();
+        sc.AddSingleton<IVoiceAnnouncementService, VoiceAnnouncementService>();
         sc.AddSingleton<ISessionCoordinator, SessionCoordinatorService>();
         sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();
         sc.AddSingleton<IControllerChannel, ControllerChannelService>();

@@ -23,6 +23,7 @@ public class SessionCoordinatorServiceTests
         public Mock<IProcessCleanupService> ProcessCleanup { get; } = new();
         public Mock<IIdleDetectionService> Idle { get; } = new();
         public Mock<ISystemClock> Clock { get; } = new();
+        public Mock<IVoiceAnnouncementService> Voice { get; } = new();
 
         public Mocks()
         {
@@ -37,7 +38,7 @@ public class SessionCoordinatorServiceTests
 
         public SessionCoordinatorService BuildSut() => new(
             Store.Object, Idempotency.Object, Channel.Object, Agent.Object,
-            KioskLock.Object, ProcessCleanup.Object, Idle.Object, Clock.Object,
+            KioskLock.Object, ProcessCleanup.Object, Idle.Object, Clock.Object, Voice.Object,
             NullLogger<SessionCoordinatorService>.Instance);
     }
 
@@ -97,6 +98,21 @@ public class SessionCoordinatorServiceTests
 
         m.Store.Verify(s => s.SaveAsync(
             It.Is<Session>(session => session.ExtendUrl == extendUrl),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task StartSessionAsync_PersistsBackendIssuedGraceDuration()
+    {
+        var m = new Mocks();
+        var sut = m.BuildSut();
+        var payload = MakeStartPayload() with { GraceSeconds = 180 };
+
+        await sut.StartSessionAsync(payload);
+
+        Assert.Equal(180, sut.CurrentSession!.GraceSeconds);
+        m.Store.Verify(s => s.SaveAsync(
+            It.Is<Session>(session => session.GraceSeconds == 180),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

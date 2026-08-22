@@ -1,7 +1,6 @@
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using ClubPay.Agent.Core;
 using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Client.Services;
 
@@ -26,11 +25,6 @@ public partial class ActiveSessionViewModel : ObservableObject
     [ObservableProperty] private string _tariffLabel = "2 soat";
     [ObservableProperty] private string _playedHoursText = "2 soat";
     [ObservableProperty] private BitmapImage? _extendQrImage;
-
-    // Warning mini-cards — bound in ActiveSessionView
-    [ObservableProperty] private bool _isWarn10Visible;
-    [ObservableProperty] private bool _isWarn5Visible;
-    [ObservableProperty] private bool _isWarn1Visible;
 
     public ActiveSessionViewModel(QrCodeService qr)
     {
@@ -90,9 +84,6 @@ public partial class ActiveSessionViewModel : ObservableObject
         int played = _session.ElapsedSeconds(now) / 3600;
         PlayedHoursText = played > 0 ? $"{played} soat" : "yangi sessiya";
 
-        IsWarn10Visible = rem is > 0 and <= Constants.Timer.WarnAt10Min;
-        IsWarn5Visible = rem is > 0 and <= Constants.Timer.WarnAt5Min;
-        IsWarn1Visible = rem is > 0 and <= Constants.Timer.WarnAt1Min;
     }
 
     private static string FormatTime(int totalSeconds)
