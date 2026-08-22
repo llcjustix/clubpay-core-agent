@@ -4,7 +4,8 @@ public sealed record ClientSessionEndResult(
     string? VoucherCode,
     int VoucherSeconds,
     string DeliveryStatus,
-    string? TelegramLink);
+    string? TelegramLink,
+    string? TelegramBotUsername);
 
 /// <summary>
 /// Ends the current kiosk session through Core. Core remains the authority: it commands the Agent

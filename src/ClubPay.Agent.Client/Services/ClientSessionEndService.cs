@@ -67,7 +67,8 @@ public sealed class ClientSessionEndService : IClientSessionEndService
             VoucherCode: voucher.ValueKind == JsonValueKind.Object ? ReadString(voucher, "code") : null,
             VoucherSeconds: voucher.ValueKind == JsonValueKind.Object ? ReadInt(voucher, "seconds_left") : 0,
             DeliveryStatus: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "status") ?? "not_requested" : "not_requested",
-            TelegramLink: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "telegram_link") : null);
+            TelegramLink: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "telegram_link") : null,
+            TelegramBotUsername: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "telegram_bot_username") : null);
     }
 
     private static Uri? BuildEndpoint(IConfiguration configuration)

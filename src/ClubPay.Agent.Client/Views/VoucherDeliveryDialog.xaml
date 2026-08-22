@@ -13,6 +13,8 @@
       <Border x:Name="QrBorder" Background="White" Padding="10" CornerRadius="10" HorizontalAlignment="Center">
         <Image x:Name="QrImage" Width="210" Height="210" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
       </Border>
+      <TextBlock x:Name="TelegramBotText" TextWrapping="Wrap" TextAlignment="Center"
+                 Foreground="{StaticResource CyanBrush}" FontWeight="SemiBold" Margin="0,12,0,0"/>
       <TextBlock x:Name="VoucherCodeText" FontFamily="{StaticResource FontMono}" FontSize="20"
                  FontWeight="Bold" Foreground="{StaticResource CyanBrush}" TextAlignment="Center" Margin="0,16,0,0"/>
       <Button Content="Готово" Padding="18,8" Margin="0,20,0,0" HorizontalAlignment="Center" Click="OnClose"/>
