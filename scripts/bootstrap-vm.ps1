@@ -15,6 +15,7 @@ $root = 'C:\ClubPay'
 $sourceZip = Join-Path $root 'agent-source.zip'
 $sourceRoot = Join-Path $root 'clubpay-core-agent-main'
 $dotnetRoot = Join-Path $root 'dotnet'
+$dotnetZip = Join-Path $root 'dotnet-sdk.zip'
 $output = Join-Path $root 'Agent'
 
 New-Item -ItemType Directory -Force -Path $root | Out-Null
@@ -27,10 +28,13 @@ if (Test-Path $sourceRoot) {
 }
 Expand-Archive -LiteralPath $sourceZip -DestinationPath $root -Force
 
-& curl.exe -fL 'https://dot.net/v1/dotnet-install.ps1' -o (Join-Path $root 'dotnet-install.ps1')
-if ($LASTEXITCODE -ne 0) { throw 'Unable to download the .NET installer.' }
+& curl.exe -fL 'https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.400/dotnet-sdk-10.0.400-win-x64.zip' -o $dotnetZip
+if ($LASTEXITCODE -ne 0) { throw 'Unable to download the .NET SDK.' }
 
-& (Join-Path $root 'dotnet-install.ps1') -Channel 10.0 -InstallDir $dotnetRoot -NoPath
+if (Test-Path $dotnetRoot) {
+    Remove-Item -Recurse -Force $dotnetRoot
+}
+Expand-Archive -LiteralPath $dotnetZip -DestinationPath $dotnetRoot -Force
 
 & (Join-Path $dotnetRoot 'dotnet.exe') publish `
     (Join-Path $sourceRoot 'src\ClubPay.Agent.Client\ClubPay.Agent.Client.csproj') `
