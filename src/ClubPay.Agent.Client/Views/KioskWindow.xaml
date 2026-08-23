@@ -3,8 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:ClubPay.Agent.Client.Views"
         xmlns:cv="clr-namespace:ClubPay.Agent.Client.Converters"
-        WindowStyle="None" WindowState="Maximized" ResizeMode="NoResize"
+        WindowStyle="None" WindowState="Normal" ResizeMode="NoResize"
         ShowInTaskbar="False" Topmost="True"
+        Loaded="OnLoaded"
         Background="{StaticResource BgDark}">
 
   <Window.Resources>

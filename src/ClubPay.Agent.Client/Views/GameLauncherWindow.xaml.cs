@@ -35,6 +35,9 @@ public partial class GameLauncherWindow : Window
         });
     }
 
+    private void OnLoaded(object sender, RoutedEventArgs e)
+        => FullScreenWindow.CoverPrimaryScreen(this);
+
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         // Launcher never closes during a session — only hides

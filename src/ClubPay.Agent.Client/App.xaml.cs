@@ -46,6 +46,7 @@ public partial class App : Application
 
         sc.AddSingleton<IAgentService, AgentService>();
         sc.AddSingleton<IKioskLockService, KioskLockService>();
+        sc.AddSingleton<IWindowsShellService, WindowsShellService>();
         sc.AddSingleton<IProcessCleanupService, ProcessCleanupService>();
         sc.AddSingleton<IIdleDetectionService, IdleDetectionService>();
         sc.AddSingleton<ISystemClock, SystemClock>();
@@ -72,6 +73,7 @@ public partial class App : Application
         _startupCts = new CancellationTokenSource();
 
         _services.GetRequiredService<IKioskLockService>().Install();
+        _services.GetRequiredService<IWindowsShellService>().HideTaskbars();
 
         // Recover persisted session state (survives a crash/restart) before anything else touches it.
         await _services.GetRequiredService<AgentStateRepository>().LoadAsync(_startupCts.Token);
@@ -99,6 +101,7 @@ public partial class App : Application
             await _services.GetRequiredService<IControllerChannel>().StopAsync();
             await _services.GetRequiredService<ISessionCoordinator>().DisposeAsync();
             _services.GetRequiredService<IKioskLockService>().Uninstall();
+            _services.GetRequiredService<IWindowsShellService>().RestoreTaskbars();
             _services.Dispose();
         }
         base.OnExit(e);

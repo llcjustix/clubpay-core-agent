@@ -38,6 +38,9 @@ public partial class KioskWindow : Window
         base.OnPreviewKeyDown(e);
     }
 
+    private void OnLoaded(object sender, RoutedEventArgs e)
+        => FullScreenWindow.CoverPrimaryScreen(this);
+
     private void UpdateVisibility()
     {
         if (Vm.IsActive)
