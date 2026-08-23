@@ -44,9 +44,6 @@
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
             <Button.ContextMenu>
               <ContextMenu>
-                <MenuItem Header="Открыть запущенное приложение" Click="OnOpenRunningAppClicked"/>
-                <MenuItem Header="Вернуться к играм" Click="OnReturnToLauncherClicked"/>
-                <Separator/>
                 <MenuItem Header="Завершить сеанс" Click="OnEndSessionClicked"/>
               </ContextMenu>
             </Button.ContextMenu>

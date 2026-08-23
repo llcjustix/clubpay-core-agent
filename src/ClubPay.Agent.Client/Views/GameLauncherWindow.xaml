@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:cv="clr-namespace:ClubPay.Agent.Client.Converters"
         WindowStyle="None" WindowState="Normal" ResizeMode="NoResize"
-        ShowInTaskbar="False"
+        ShowInTaskbar="False" Topmost="True"
         Loaded="OnLoaded"
         Background="{StaticResource BgDark}">
 

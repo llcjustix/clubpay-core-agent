@@ -69,7 +69,7 @@ public partial class GameLauncherViewModel : ObservableObject
         // button: restore the existing application instead of launching a duplicate.
         if (RunningApps.Contains(app))
         {
-            if (TryFocusRunningApp(app))
+            if (await FocusRunningAppAsync(app))
                 return;
 
             // The process/window disappeared outside of our control. Make this click
@@ -108,6 +108,7 @@ public partial class GameLauncherViewModel : ObservableObject
         }
 
         AppLaunched(app);  // retain Agent as fullscreen background, then let game take foreground
+        _ = PromoteAppWhenReadyAsync(app);
 
         // Both a Steam game URI and Steam.exe may hand control to an already-running Steam client
         // and exit immediately. That hand-off is not the end of the player's application: keep
@@ -137,8 +138,20 @@ public partial class GameLauncherViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void FocusRunningApp(LauncherApp? app)
-        => TryFocusRunningApp(app);
+    public async Task<bool> FocusRunningAppAsync(LauncherApp? app)
+    {
+        // Steam and games commonly create their main window a moment after their launcher
+        // process starts. Retry before deciding the dock item is stale.
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            if (TryFocusRunningApp(app))
+                return true;
+
+            await Task.Delay(250);
+        }
+
+        return false;
+    }
 
     [RelayCommand]
     public async Task CloseRunningApp(LauncherApp? app)
@@ -230,6 +243,14 @@ public partial class GameLauncherViewModel : ObservableObject
         }
 
         return false;
+    }
+
+    private async Task PromoteAppWhenReadyAsync(LauncherApp app)
+    {
+        // The Agent launcher is intentionally topmost to hide Explorer and any stray
+        // administrative windows. Promote only the player app above that layer once its
+        // native window exists; the timer therefore never covers Steam or a game.
+        await FocusRunningAppAsync(app);
     }
 
     private IEnumerable<Process> GetTrackedProcesses(LauncherApp app)
@@ -348,6 +369,10 @@ internal static class NativeLauncher
 {
     public const int SW_MINIMIZE = 6;
     private const int SW_RESTORE = 9;
+    private static readonly nint HwndTopmost = new(-1);
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpShowWindow = 0x0040;
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     public static extern bool ShowWindow(nint hWnd, int nCmdShow);
@@ -361,11 +386,16 @@ internal static class NativeLauncher
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(nint hWnd);
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter,
+        int x, int y, int cx, int cy, uint flags);
+
     public static void RestoreAndForeground(nint hWnd)
     {
         // This is called from a player's explicit click, which lets Windows accept
         // the foreground request without exposing Explorer/taskbar in kiosk mode.
         ShowWindowAsync(hWnd, SW_RESTORE);
+        SetWindowPos(hWnd, HwndTopmost, 0, 0, 0, 0, SwpNoSize | SwpNoMove | SwpShowWindow);
         BringWindowToTop(hWnd);
         SetForegroundWindow(hWnd);
     }

@@ -21,15 +21,7 @@ public partial class SessionOverlayWindow : Window
         InitializeComponent();
         Loaded += (_, _) => PositionTopRight();
         ActiveSessionControl.EndSessionRequested += RequestSessionEndAsync;
-        ActiveSessionControl.ReturnToLauncherRequested += ReturnToLauncher;
-        ActiveSessionControl.OpenRunningAppRequested += OpenRunningApp;
     }
-
-    private void ReturnToLauncher()
-        => GameLauncherWindow.Instance?.Vm.ReturnToLauncherCommand.Execute(null);
-
-    private void OpenRunningApp()
-        => GameLauncherWindow.Instance?.Vm.FocusRunningAppCommand.Execute(null);
 
     private async Task RequestSessionEndAsync()
     {
