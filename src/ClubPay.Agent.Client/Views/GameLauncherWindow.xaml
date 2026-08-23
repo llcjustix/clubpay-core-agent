@@ -76,6 +76,97 @@
         </Grid>
       </Border>
 
+      <!-- ── PLAYER APP DOCK ───────────────────────────────────────
+           Safe replacement for the Windows taskbar. It exposes only apps which
+           ClubPay itself started, so a player can minimise and restore Steam or a
+           browser without being able to reach Explorer or system settings. -->
+      <Border DockPanel.Dock="Bottom" Background="#EE111827"
+              BorderBrush="#2B00D4FF" BorderThickness="0,1,0,0"
+              Padding="18,8" MinHeight="64">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+
+          <!-- Launcher button deliberately returns to the Agent UI without closing apps. -->
+          <Button Grid.Column="0" Width="42" Height="42" Cursor="Hand"
+                  ToolTip="ClubPay launcher" Command="{Binding ShowLauncherCommand}"
+                  Background="#1C00D4FF" BorderBrush="#4000D4FF" BorderThickness="1">
+            <Button.Template>
+              <ControlTemplate TargetType="Button">
+                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
+                  <Path Data="M17,0 L34,9.5 L34,28.5 L17,38 L0,28.5 L0,9.5 Z"
+                        Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Fill="{StaticResource CyanBrush}"/>
+                </Border>
+              </ControlTemplate>
+            </Button.Template>
+          </Button>
+
+          <Border Grid.Column="1" Width="1" Height="30" Margin="14,0"
+                  Background="#26FFFFFF" VerticalAlignment="Center"/>
+
+          <ScrollViewer Grid.Column="2" HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding RunningApps}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Margin="0,0,8,0" Height="42" MinWidth="132" MaxWidth="240"
+                          Cursor="Hand" ToolTip="Открыть приложение"
+                          Command="{Binding DataContext.FocusRunningAppCommand,
+                                    RelativeSource={RelativeSource AncestorType=Window}}"
+                          CommandParameter="{Binding}">
+                    <Button.Template>
+                      <ControlTemplate TargetType="Button">
+                        <Border x:Name="DockItem" Padding="10,5" CornerRadius="7"
+                                Background="#16FFFFFF" BorderBrush="#30FFFFFF" BorderThickness="1">
+                          <Grid>
+                            <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="26"/>
+                              <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="24" Height="24" CornerRadius="6" Background="#1800D4FF"
+                                    VerticalAlignment="Center">
+                              <TextBlock Text="{Binding FirstChar}" FontFamily="{StaticResource FontChakra}"
+                                         FontSize="14" FontWeight="Bold" Foreground="{StaticResource CyanBrush}"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+                              <TextBlock Text="{Binding Name}" FontFamily="{StaticResource FontChakra}"
+                                         FontSize="12" FontWeight="SemiBold" Foreground="White"
+                                         TextTrimming="CharacterEllipsis"/>
+                              <Border Height="2" Background="{StaticResource CyanBrush}" CornerRadius="1" Margin="0,3,0,0"/>
+                            </StackPanel>
+                          </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                          <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="DockItem" Property="Background" Value="#2800D4FF"/>
+                            <Setter TargetName="DockItem" Property="BorderBrush" Value="#8000D4FF"/>
+                          </Trigger>
+                        </ControlTemplate.Triggers>
+                      </ControlTemplate>
+                    </Button.Template>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+          <TextBlock Grid.Column="3" Text="Открытые приложения" VerticalAlignment="Center"
+                     FontFamily="{StaticResource FontMono}" FontSize="11"
+                     Foreground="{StaticResource TextMuted}" Margin="12,0,0,0"
+                     Visibility="{Binding IsAppRunning, Converter={StaticResource BoolVis}}"/>
+        </Grid>
+      </Border>
+
       <!-- ── CONTENT ────────────────────────────────────────────── -->
       <ScrollViewer VerticalScrollBarVisibility="Auto"
                     HorizontalScrollBarVisibility="Disabled"

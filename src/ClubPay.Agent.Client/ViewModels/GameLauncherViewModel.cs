@@ -13,6 +13,10 @@ namespace ClubPay.Agent.Client.ViewModels;
 public partial class GameLauncherViewModel : ObservableObject
 {
     public ObservableCollection<LauncherApp> Apps { get; } = [];
+    // This is deliberately not a list of every Windows process.  The player can only
+    // return to applications that were launched through ClubPay, so the kiosk shell
+    // never turns into a gateway to Explorer or system tools.
+    public ObservableCollection<LauncherApp> RunningApps { get; } = [];
 
     [ObservableProperty] private LauncherApp? _runningApp;
     [ObservableProperty] private bool         _isAppRunning;
@@ -21,7 +25,7 @@ public partial class GameLauncherViewModel : ObservableObject
     public event Action?             ReturnRequested;   // show launcher window
     public event Action<LauncherApp> AppLaunched = delegate { }; // external game takes foreground
 
-    private Process? _currentProcess;
+    private readonly Dictionary<LauncherApp, Process?> _runningProcesses = [];
     private readonly ILogger<GameLauncherViewModel> _logger;
 
     public string ClubName { get; }
@@ -61,19 +65,16 @@ public partial class GameLauncherViewModel : ObservableObject
     [RelayCommand]
     public async Task LaunchApp(LauncherApp app)
     {
-        // A player can minimise Steam (or click the launcher background) at any point.
-        // Do not turn the tile into a dead button in that state: a second click must
-        // restore the already-running player application instead of starting a copy.
-        if (IsAppRunning)
+        // A second click on an already-open tile is the same as clicking its taskbar
+        // button: restore the existing application instead of launching a duplicate.
+        if (RunningApps.Contains(app))
         {
-            if (TryFocusRunningApp())
+            if (TryFocusRunningApp(app))
                 return;
 
-            // The process/window disappeared outside of our control.  Clear the stale
-            // state and make this click a normal fresh launch.
-            _currentProcess = null;
-            RunningApp = null;
-            IsAppRunning = false;
+            // The process/window disappeared outside of our control. Make this click
+            // a fresh launch and remove only this stale taskbar item.
+            UntrackApp(app);
         }
 
         LaunchError = null;
@@ -96,7 +97,8 @@ public partial class GameLauncherViewModel : ObservableObject
 
         try
         {
-            _currentProcess = Process.Start(psi);
+            var process = Process.Start(psi);
+            TrackApp(app, process);
         }
         catch (Exception ex)
         {
@@ -105,8 +107,6 @@ public partial class GameLauncherViewModel : ObservableObject
             return;
         }
 
-        RunningApp    = app;
-        IsAppRunning  = true;
         AppLaunched(app);  // retain Agent as fullscreen background, then let game take foreground
 
         // Both a Steam game URI and Steam.exe may hand control to an already-running Steam client
@@ -115,38 +115,39 @@ public partial class GameLauncherViewModel : ObservableObject
         if (IsSteamLaunch(app))
             return;
 
-        if (_currentProcess is not null)
+        if (_runningProcesses.TryGetValue(app, out var launchedProcess) && launchedProcess is not null)
         {
-            await _currentProcess.WaitForExitAsync();
-            _currentProcess = null;
+            await launchedProcess.WaitForExitAsync();
         }
 
-        RunningApp   = null;
-        IsAppRunning = false;
-        ReturnRequested?.Invoke(); // game exited → show launcher again
+        UntrackApp(app);
+        if (!IsAppRunning)
+            ReturnRequested?.Invoke(); // last game exited → show launcher again
     }
 
     [RelayCommand]
     public void ReturnToLauncher()
     {
-        // Minimise running game so launcher appears in front
-        if (_currentProcess is { HasExited: false, MainWindowHandle: var hwnd } && hwnd != nint.Zero)
+        // This is a real minimise, not an application close.  The entry remains in the
+        // ClubPay dock and can be restored with one click, like a Windows taskbar item.
+        if (TryGetWindowHandle(RunningApp, out var hwnd))
             NativeLauncher.ShowWindow(hwnd, NativeLauncher.SW_MINIMIZE);
 
-        _currentProcess = null;
-        RunningApp = null;
-        IsAppRunning = false;
         ReturnRequested?.Invoke();
     }
 
     [RelayCommand]
-    public void FocusRunningApp()
-        => TryFocusRunningApp();
+    public void FocusRunningApp(LauncherApp? app)
+        => TryFocusRunningApp(app);
 
-    private bool TryFocusRunningApp()
+    [RelayCommand]
+    public void ShowLauncher()
+        => ReturnRequested?.Invoke();
+
+    private bool TryFocusRunningApp(LauncherApp? app)
     {
-        var app = RunningApp;
-        if (app is null)
+        app ??= RunningApp ?? RunningApps.LastOrDefault();
+        if (app is null || !RunningApps.Contains(app))
             return false;
 
         // Process.Start("steam://…") commonly exits immediately after handing work to
@@ -154,8 +155,8 @@ public partial class GameLauncherViewModel : ObservableObject
         // originally started, so both Steam itself and installed Steam games can be
         // recovered from the ClubPay UI after being minimised or covered.
         var candidates = new List<Process>();
-        if (_currentProcess is not null)
-            candidates.Add(_currentProcess);
+        if (_runningProcesses.TryGetValue(app, out var launchedProcess) && launchedProcess is not null)
+            candidates.Add(launchedProcess);
 
         var processName = Path.GetFileNameWithoutExtension(app.ExePath);
         if (!string.IsNullOrWhiteSpace(processName))
@@ -177,6 +178,7 @@ public partial class GameLauncherViewModel : ObservableObject
                     continue;
 
                 NativeLauncher.RestoreAndForeground(process.MainWindowHandle);
+                RunningApp = app;
                 return true;
             }
             catch (Exception ex)
@@ -190,11 +192,80 @@ public partial class GameLauncherViewModel : ObservableObject
 
     public void KillRunningApp()
     {
-        try { _currentProcess?.Kill(entireProcessTree: true); }
-        catch { }
-        _currentProcess = null;
+        foreach (var process in _runningProcesses.Values.Where(process => process is not null))
+        {
+            try { process!.Kill(entireProcessTree: true); }
+            catch { }
+        }
+
+        _runningProcesses.Clear();
+        RunningApps.Clear();
         RunningApp   = null;
         IsAppRunning = false;
+    }
+
+    private void TrackApp(LauncherApp app, Process? process)
+    {
+        _runningProcesses[app] = process;
+        if (!RunningApps.Contains(app))
+            RunningApps.Add(app);
+
+        RunningApp = app;
+        IsAppRunning = true;
+    }
+
+    private void UntrackApp(LauncherApp app)
+    {
+        _runningProcesses.Remove(app);
+        RunningApps.Remove(app);
+        RunningApp = RunningApps.LastOrDefault();
+        IsAppRunning = RunningApps.Count > 0;
+    }
+
+    private bool TryGetWindowHandle(LauncherApp? app, out nint handle)
+    {
+        handle = nint.Zero;
+        if (app is null)
+            return false;
+
+        if (_runningProcesses.TryGetValue(app, out var process) && process is not null)
+        {
+            try
+            {
+                process.Refresh();
+                if (!process.HasExited && process.MainWindowHandle != nint.Zero)
+                {
+                    handle = process.MainWindowHandle;
+                    return true;
+                }
+            }
+            catch { }
+        }
+
+        var processName = Path.GetFileNameWithoutExtension(app.ExePath);
+        if (string.IsNullOrWhiteSpace(processName))
+            return false;
+
+        try
+        {
+            foreach (var candidate in Process.GetProcessesByName(processName))
+            {
+                using (candidate)
+                {
+                    if (candidate.MainWindowHandle == nint.Zero)
+                        continue;
+
+                    handle = candidate.MainWindowHandle;
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not find window handle for {AppName}", app.Name);
+        }
+
+        return false;
     }
 
     private static bool IsSteamGameLaunch(LauncherApp app) =>
