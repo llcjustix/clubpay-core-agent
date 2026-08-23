@@ -30,10 +30,12 @@ public sealed class SteamGameDiscoveryService(IConfiguration config, ILogger<Ste
         if (string.IsNullOrWhiteSpace(steamExe))
             return [];
 
-        // Do not expose the Steam client itself as a player-facing tile. Opening the client only
-        // gives the player the regular Windows/Steam UI (and is what made the VM look as though
-        // the Agent had been minimised). The kiosk launcher must expose installed games only.
-        var apps = new List<LauncherApp>();
+        // Steam is intentionally available to the player: they may need to sign in before
+        // launching a game. The Agent remains fullscreen behind the Steam window.
+        var apps = new List<LauncherApp>
+        {
+            new("Steam", steamExe, Category: "Platform")
+        };
 
         foreach (var manifest in roots.SelectMany(GetManifestFiles))
         {
@@ -61,7 +63,8 @@ public sealed class SteamGameDiscoveryService(IConfiguration config, ILogger<Ste
         return apps
             .GroupBy(app => app.Args, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
-            .OrderBy(app => app.Name, StringComparer.CurrentCultureIgnoreCase)
+            .OrderBy(app => app.Category == "Platform" ? 0 : 1)
+            .ThenBy(app => app.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
     }
 

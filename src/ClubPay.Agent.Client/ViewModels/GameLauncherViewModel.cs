@@ -140,10 +140,8 @@ public partial class GameLauncherViewModel : ObservableObject
         app.Args["-applaunch ".Length..].Trim();
 
     private static bool IsPlayerLaunchable(LauncherApp app) =>
-        // Legacy per-PC configurations may still list Steam itself. It opens the regular Steam
-        // client rather than a game, so it must never appear in the player launcher.
-        !(Path.GetFileName(app.ExePath).Equals("steam.exe", StringComparison.OrdinalIgnoreCase) &&
-          string.IsNullOrWhiteSpace(app.Args)) &&
+        // Steam itself is deliberately shown so a player can sign in. Its common redistributables
+        // package is merely a runtime dependency, never a player-facing application.
         !app.Name.Equals("Steamworks Common Redistributables", StringComparison.OrdinalIgnoreCase);
 }
 
