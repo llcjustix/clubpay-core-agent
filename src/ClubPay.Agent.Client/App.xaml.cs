@@ -50,6 +50,7 @@ public partial class App : Application
         sc.AddSingleton<IIdleDetectionService, IdleDetectionService>();
         sc.AddSingleton<ISystemClock, SystemClock>();
         sc.AddSingleton<IVoiceAnnouncementService, VoiceAnnouncementService>();
+        sc.AddSingleton<SteamGameDiscoveryService>();
         sc.AddSingleton<IClientSessionEndService, ClientSessionEndService>();
         sc.AddSingleton<ISessionCoordinator, SessionCoordinatorService>();
         sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();

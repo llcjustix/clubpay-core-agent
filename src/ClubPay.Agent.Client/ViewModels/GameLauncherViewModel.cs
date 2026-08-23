@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Configuration;
 using ClubPay.Agent.Core.Models;
+using ClubPay.Agent.Client.Services;
 
 namespace ClubPay.Agent.Client.ViewModels;
 
@@ -22,7 +24,7 @@ public partial class GameLauncherViewModel : ObservableObject
     public string ClubName { get; }
     public string PcId     { get; }
 
-    public GameLauncherViewModel(IConfiguration config)
+    public GameLauncherViewModel(IConfiguration config, SteamGameDiscoveryService steamGames)
     {
         ClubName = config["Agent:ClubName"] ?? "NEXUS ARENA";
         PcId     = config["Agent:PcId"]     ?? "PC-01";
@@ -36,7 +38,15 @@ public partial class GameLauncherViewModel : ObservableObject
                 Args:     item["Args"]     ?? "",
                 IconPath: item["IconPath"] ?? "",
                 Category: item["Category"] ?? "O'yin");
-            if (!string.IsNullOrEmpty(app.ExePath))
+            // Never show an attractive but non-working tile: configured apps must exist locally.
+            if (!string.IsNullOrEmpty(app.ExePath) && File.Exists(app.ExePath))
+                Apps.Add(app);
+        }
+
+        foreach (var app in steamGames.Discover())
+        {
+            if (!Apps.Any(existing => string.Equals(existing.Args, app.Args, StringComparison.OrdinalIgnoreCase) &&
+                                      string.Equals(existing.ExePath, app.ExePath, StringComparison.OrdinalIgnoreCase)))
                 Apps.Add(app);
         }
     }
@@ -62,6 +72,12 @@ public partial class GameLauncherViewModel : ObservableObject
         RunningApp    = app;
         IsAppRunning  = true;
         AppLaunched(app);  // signal to hide launcher window
+
+        // Steam hands a launch request to its client and the Steam.exe process may return straight
+        // away. Keep the launcher hidden until the player explicitly returns; session cleanup still
+        // closes every process spawned after the session baseline.
+        if (IsSteamGameLaunch(app))
+            return;
 
         if (_currentProcess is not null)
         {
@@ -92,6 +108,10 @@ public partial class GameLauncherViewModel : ObservableObject
         RunningApp   = null;
         IsAppRunning = false;
     }
+
+    private static bool IsSteamGameLaunch(LauncherApp app) =>
+        Path.GetFileName(app.ExePath).Equals("steam.exe", StringComparison.OrdinalIgnoreCase) &&
+        app.Args.StartsWith("-applaunch ", StringComparison.OrdinalIgnoreCase);
 }
 
 internal static class NativeLauncher
