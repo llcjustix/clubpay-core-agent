@@ -7,6 +7,7 @@ public partial class ActiveSessionView : UserControl
 {
     public event Func<Task>? EndSessionRequested;
     public event Action? ReturnToLauncherRequested;
+    public event Action? OpenRunningAppRequested;
 
     public ActiveSessionView() => InitializeComponent();
 
@@ -21,6 +22,9 @@ public partial class ActiveSessionView : UserControl
 
     private void OnReturnToLauncherClicked(object sender, RoutedEventArgs e)
         => ReturnToLauncherRequested?.Invoke();
+
+    private void OnOpenRunningAppClicked(object sender, RoutedEventArgs e)
+        => OpenRunningAppRequested?.Invoke();
 
     private async void OnEndSessionClicked(object sender, RoutedEventArgs e)
     {

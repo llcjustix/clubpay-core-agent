@@ -7,6 +7,9 @@ namespace ClubPay.Agent.Client.Views;
 public partial class GameLauncherWindow : Window
 {
     public static GameLauncherWindow? Instance { get; private set; }
+    private const int WmMouseActivate = 0x0021;
+    private const int MaNoActivate = 3;
+    private bool _externalAppMode;
 
     internal GameLauncherViewModel Vm => (GameLauncherViewModel)DataContext;
 
@@ -38,9 +41,38 @@ public partial class GameLauncherWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
         => FullScreenWindow.CoverPrimaryScreen(this);
 
-    internal void EnterExternalAppMode() => SetNoActivate(true);
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        var source = PresentationSource.FromVisual(this) as HwndSource;
+        source?.AddHook(WndProc);
+    }
 
-    internal void EnterLauncherMode() => SetNoActivate(false);
+    internal void EnterExternalAppMode()
+    {
+        _externalAppMode = true;
+        SetNoActivate(true);
+    }
+
+    internal void EnterLauncherMode()
+    {
+        _externalAppMode = false;
+        SetNoActivate(false);
+    }
+
+    private nint WndProc(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
+    {
+        // WS_EX_NOACTIVATE alone is not reliable for every WPF/Windows combination.
+        // Explicitly reject activation when a player clicks the launcher background:
+        // Steam stays in front rather than looking as if it has disappeared.
+        if (_externalAppMode && message == WmMouseActivate)
+        {
+            handled = true;
+            return MaNoActivate;
+        }
+
+        return nint.Zero;
+    }
 
     private void SetNoActivate(bool enabled)
     {

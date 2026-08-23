@@ -61,7 +61,20 @@ public partial class GameLauncherViewModel : ObservableObject
     [RelayCommand]
     public async Task LaunchApp(LauncherApp app)
     {
-        if (IsAppRunning) return;
+        // A player can minimise Steam (or click the launcher background) at any point.
+        // Do not turn the tile into a dead button in that state: a second click must
+        // restore the already-running player application instead of starting a copy.
+        if (IsAppRunning)
+        {
+            if (TryFocusRunningApp())
+                return;
+
+            // The process/window disappeared outside of our control.  Clear the stale
+            // state and make this click a normal fresh launch.
+            _currentProcess = null;
+            RunningApp = null;
+            IsAppRunning = false;
+        }
 
         LaunchError = null;
 
@@ -126,6 +139,55 @@ public partial class GameLauncherViewModel : ObservableObject
         ReturnRequested?.Invoke();
     }
 
+    [RelayCommand]
+    public void FocusRunningApp()
+        => TryFocusRunningApp();
+
+    private bool TryFocusRunningApp()
+    {
+        var app = RunningApp;
+        if (app is null)
+            return false;
+
+        // Process.Start("steam://…") commonly exits immediately after handing work to
+        // the real Steam process.  Search by executable name as well as the process we
+        // originally started, so both Steam itself and installed Steam games can be
+        // recovered from the ClubPay UI after being minimised or covered.
+        var candidates = new List<Process>();
+        if (_currentProcess is not null)
+            candidates.Add(_currentProcess);
+
+        var processName = Path.GetFileNameWithoutExtension(app.ExePath);
+        if (!string.IsNullOrWhiteSpace(processName))
+        {
+            try { candidates.AddRange(Process.GetProcessesByName(processName)); }
+            catch (Exception ex) { _logger.LogDebug(ex, "Could not find running process for {AppName}", app.Name); }
+        }
+
+        var visitedProcessIds = new HashSet<int>();
+        foreach (var process in candidates)
+        {
+            try
+            {
+                if (!visitedProcessIds.Add(process.Id))
+                    continue;
+
+                process.Refresh();
+                if (process.HasExited || process.MainWindowHandle == nint.Zero)
+                    continue;
+
+                NativeLauncher.RestoreAndForeground(process.MainWindowHandle);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not foreground {AppName}", app.Name);
+            }
+        }
+
+        return false;
+    }
+
     public void KillRunningApp()
     {
         try { _currentProcess?.Kill(entireProcessTree: true); }
@@ -154,7 +216,26 @@ public partial class GameLauncherViewModel : ObservableObject
 internal static class NativeLauncher
 {
     public const int SW_MINIMIZE = 6;
+    private const int SW_RESTORE = 9;
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     public static extern bool ShowWindow(nint hWnd, int nCmdShow);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool ShowWindowAsync(nint hWnd, int nCmdShow);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(nint hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(nint hWnd);
+
+    public static void RestoreAndForeground(nint hWnd)
+    {
+        // This is called from a player's explicit click, which lets Windows accept
+        // the foreground request without exposing Explorer/taskbar in kiosk mode.
+        ShowWindowAsync(hWnd, SW_RESTORE);
+        BringWindowToTop(hWnd);
+        SetForegroundWindow(hWnd);
+    }
 }
