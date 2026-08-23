@@ -120,9 +120,18 @@
                 <DataTemplate>
                   <Button Margin="0,0,8,0" Height="42" MinWidth="132" MaxWidth="240"
                           Cursor="Hand" ToolTip="Открыть приложение"
+                          Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                           Command="{Binding DataContext.FocusRunningAppCommand,
                                     RelativeSource={RelativeSource AncestorType=Window}}"
                           CommandParameter="{Binding}">
+                    <Button.ContextMenu>
+                      <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                        <MenuItem Header="Закрыть приложение"
+                                  Command="{Binding CloseRunningAppCommand}"
+                                  CommandParameter="{Binding PlacementTarget.DataContext,
+                                    RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                      </ContextMenu>
+                    </Button.ContextMenu>
                     <Button.Template>
                       <ControlTemplate TargetType="Button">
                         <Border x:Name="DockItem" Padding="10,5" CornerRadius="7"

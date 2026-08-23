@@ -45,7 +45,14 @@ public partial class KioskWindow : Window
     {
         if (Vm.IsActive)
         {
-            Hide();
+            // Do not hide the only full-screen Agent surface before the launcher is
+            // ready. Hiding it first leaves a brief frame where Explorer/Windows is
+            // visible during a successful payment → session transition.
+            //
+            // Keep the kiosk as the opaque background, but drop its topmost flag so
+            // the player launcher can sit above it. It is restored to topmost as
+            // soon as the session ends.
+            Topmost = false;
             SessionOverlayWindow.Instance?.Show();
             GameLauncherWindow.Instance?.Show();
             GameLauncherWindow.Instance?.Activate();
@@ -55,6 +62,7 @@ public partial class KioskWindow : Window
             GameLauncherWindow.Instance?.EnterLauncherMode();
             GameLauncherWindow.Instance?.Hide();
             SessionOverlayWindow.Instance?.Hide();
+            Topmost = true;
             Show();
             Activate();
             Focus();

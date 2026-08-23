@@ -141,6 +141,57 @@ public partial class GameLauncherViewModel : ObservableObject
         => TryFocusRunningApp(app);
 
     [RelayCommand]
+    public async Task CloseRunningApp(LauncherApp? app)
+    {
+        app ??= RunningApp;
+        if (app is null || !RunningApps.Contains(app))
+            return;
+
+        // A dock entry is created only for an app launched by ClubPay. Closing it
+        // must therefore affect only that player's app, never Explorer or arbitrary
+        // Windows processes. Try a graceful close first, then force-close only the
+        // still-running process after a short grace period.
+        var processes = GetTrackedProcesses(app).ToList();
+        foreach (var process in processes)
+        {
+            try
+            {
+                process.Refresh();
+                if (!process.HasExited && process.MainWindowHandle != nint.Zero)
+                    process.CloseMainWindow();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not request close for {AppName}", app.Name);
+            }
+        }
+
+        await Task.Delay(TimeSpan.FromSeconds(2));
+
+        foreach (var process in processes)
+        {
+            try
+            {
+                process.Refresh();
+                if (!process.HasExited)
+                    process.Kill(entireProcessTree: true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not terminate {AppName}", app.Name);
+            }
+            finally
+            {
+                process.Dispose();
+            }
+        }
+
+        UntrackApp(app);
+        if (!IsAppRunning)
+            ReturnRequested?.Invoke();
+    }
+
+    [RelayCommand]
     public void ShowLauncher()
         => ReturnRequested?.Invoke();
 
@@ -154,16 +205,7 @@ public partial class GameLauncherViewModel : ObservableObject
         // the real Steam process.  Search by executable name as well as the process we
         // originally started, so both Steam itself and installed Steam games can be
         // recovered from the ClubPay UI after being minimised or covered.
-        var candidates = new List<Process>();
-        if (_runningProcesses.TryGetValue(app, out var launchedProcess) && launchedProcess is not null)
-            candidates.Add(launchedProcess);
-
-        var processName = Path.GetFileNameWithoutExtension(app.ExePath);
-        if (!string.IsNullOrWhiteSpace(processName))
-        {
-            try { candidates.AddRange(Process.GetProcessesByName(processName)); }
-            catch (Exception ex) { _logger.LogDebug(ex, "Could not find running process for {AppName}", app.Name); }
-        }
+        var candidates = GetTrackedProcesses(app);
 
         var visitedProcessIds = new HashSet<int>();
         foreach (var process in candidates)
@@ -188,6 +230,24 @@ public partial class GameLauncherViewModel : ObservableObject
         }
 
         return false;
+    }
+
+    private IEnumerable<Process> GetTrackedProcesses(LauncherApp app)
+    {
+        var candidates = new List<Process>();
+        if (_runningProcesses.TryGetValue(app, out var launchedProcess) && launchedProcess is not null)
+            candidates.Add(launchedProcess);
+
+        var processName = Path.GetFileNameWithoutExtension(app.ExePath);
+        if (!string.IsNullOrWhiteSpace(processName))
+        {
+            try { candidates.AddRange(Process.GetProcessesByName(processName)); }
+            catch (Exception ex) { _logger.LogDebug(ex, "Could not find running process for {AppName}", app.Name); }
+        }
+
+        return candidates
+            .GroupBy(process => process.Id)
+            .Select(group => group.First());
     }
 
     public void KillRunningApp()
