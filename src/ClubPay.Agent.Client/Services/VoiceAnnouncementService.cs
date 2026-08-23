@@ -14,10 +14,10 @@ public sealed class VoiceAnnouncementService(IConfiguration config, ILogger<Voic
 {
     private readonly bool _enabled = config.GetValue("Agent:VoiceAnnouncementsEnabled", true);
 
-    public Task AnnounceRemainingTimeAsync(int remainingSeconds, CancellationToken ct = default)
+    public async Task AnnounceRemainingTimeAsync(int remainingSeconds, CancellationToken ct = default)
     {
         if (!_enabled || ct.IsCancellationRequested)
-            return Task.CompletedTask;
+            return;
 
         var text = remainingSeconds switch
         {
@@ -45,6 +45,7 @@ public sealed class VoiceAnnouncementService(IConfiguration config, ILogger<Voic
                     FileName = "powershell.exe",
                     UseShellExecute = false,
                     CreateNoWindow = true,
+                    RedirectStandardError = true,
                 }
             };
             process.StartInfo.ArgumentList.Add("-NoProfile");
@@ -52,12 +53,20 @@ public sealed class VoiceAnnouncementService(IConfiguration config, ILogger<Voic
             process.StartInfo.ArgumentList.Add("-Command");
             process.StartInfo.ArgumentList.Add(script);
             process.Start();
+            var errorTask = process.StandardError.ReadToEndAsync(ct);
+            await process.WaitForExitAsync(ct);
+            var error = await errorTask;
+            if (process.ExitCode != 0)
+                logger.LogWarning("Session time announcement failed with exit code {ExitCode}: {Error}",
+                    process.ExitCode, error);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // App shutdown must not be held up by an in-flight voice prompt.
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Could not play the session time announcement");
         }
-
-        return Task.CompletedTask;
     }
 }
