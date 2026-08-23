@@ -4,6 +4,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Client.Services;
 
@@ -15,17 +16,23 @@ public partial class GameLauncherViewModel : ObservableObject
 
     [ObservableProperty] private LauncherApp? _runningApp;
     [ObservableProperty] private bool         _isAppRunning;
+    [ObservableProperty] private string?      _launchError;
 
     public event Action?             ReturnRequested;   // show launcher window
     public event Action<LauncherApp> AppLaunched = delegate { }; // hide launcher, game visible
 
     private Process? _currentProcess;
+    private readonly ILogger<GameLauncherViewModel> _logger;
 
     public string ClubName { get; }
     public string PcId     { get; }
 
-    public GameLauncherViewModel(IConfiguration config, SteamGameDiscoveryService steamGames)
+    public GameLauncherViewModel(
+        IConfiguration config,
+        SteamGameDiscoveryService steamGames,
+        ILogger<GameLauncherViewModel> logger)
     {
+        _logger = logger;
         ClubName = config["Agent:ClubName"] ?? "NEXUS ARENA";
         PcId     = config["Agent:PcId"]     ?? "PC-01";
 
@@ -39,7 +46,7 @@ public partial class GameLauncherViewModel : ObservableObject
                 IconPath: item["IconPath"] ?? "",
                 Category: item["Category"] ?? "O'yin");
             // Never show an attractive but non-working tile: configured apps must exist locally.
-            if (!string.IsNullOrEmpty(app.ExePath) && File.Exists(app.ExePath))
+            if (IsPlayerLaunchable(app) && File.Exists(app.ExePath))
                 Apps.Add(app);
         }
 
@@ -56,18 +63,34 @@ public partial class GameLauncherViewModel : ObservableObject
     {
         if (IsAppRunning) return;
 
-        var psi = new ProcessStartInfo
-        {
-            FileName        = app.ExePath,
-            Arguments       = app.Args,
-            UseShellExecute = true
-        };
+        LaunchError = null;
+
+        var isSteamGame = IsSteamGameLaunch(app);
+        var psi = isSteamGame
+            ? new ProcessStartInfo
+            {
+                // The URI is handled by the installed Steam client. It is more reliable than
+                // starting Steam.exe directly, particularly when Steam is already running.
+                FileName = $"steam://run/{GetSteamAppId(app)}",
+                UseShellExecute = true
+            }
+            : new ProcessStartInfo
+            {
+                FileName = app.ExePath,
+                Arguments = app.Args,
+                UseShellExecute = true
+            };
 
         try
         {
             _currentProcess = Process.Start(psi);
         }
-        catch { return; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not launch {AppName}", app.Name);
+            LaunchError = $"Не удалось запустить «{app.Name}». Проверьте, что Steam установлен и пользователь вошёл в аккаунт.";
+            return;
+        }
 
         RunningApp    = app;
         IsAppRunning  = true;
@@ -76,7 +99,7 @@ public partial class GameLauncherViewModel : ObservableObject
         // Steam hands a launch request to its client and the Steam.exe process may return straight
         // away. Keep the launcher hidden until the player explicitly returns; session cleanup still
         // closes every process spawned after the session baseline.
-        if (IsSteamGameLaunch(app))
+        if (isSteamGame)
             return;
 
         if (_currentProcess is not null)
@@ -112,6 +135,16 @@ public partial class GameLauncherViewModel : ObservableObject
     private static bool IsSteamGameLaunch(LauncherApp app) =>
         Path.GetFileName(app.ExePath).Equals("steam.exe", StringComparison.OrdinalIgnoreCase) &&
         app.Args.StartsWith("-applaunch ", StringComparison.OrdinalIgnoreCase);
+
+    private static string GetSteamAppId(LauncherApp app) =>
+        app.Args["-applaunch ".Length..].Trim();
+
+    private static bool IsPlayerLaunchable(LauncherApp app) =>
+        // Legacy per-PC configurations may still list Steam itself. It opens the regular Steam
+        // client rather than a game, so it must never appear in the player launcher.
+        !(Path.GetFileName(app.ExePath).Equals("steam.exe", StringComparison.OrdinalIgnoreCase) &&
+          string.IsNullOrWhiteSpace(app.Args)) &&
+        !app.Name.Equals("Steamworks Common Redistributables", StringComparison.OrdinalIgnoreCase);
 }
 
 internal static class NativeLauncher

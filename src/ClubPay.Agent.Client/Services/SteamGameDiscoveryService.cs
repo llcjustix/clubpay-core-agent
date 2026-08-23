@@ -45,6 +45,11 @@ public sealed class SteamGameDiscoveryService(IConfiguration config, ILogger<Ste
                 if (string.IsNullOrWhiteSpace(appId) || string.IsNullOrWhiteSpace(name))
                     continue;
 
+                // This is a Steam runtime dependency, not a game a player can launch.
+                // Steam may create its manifest automatically, so never expose it as a tile.
+                if (appId == "228980" || name.Equals("Steamworks Common Redistributables", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 apps.Add(new LauncherApp(name, steamExe, $"-applaunch {appId}", Category: "O'yin"));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
