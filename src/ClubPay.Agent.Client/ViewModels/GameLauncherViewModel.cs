@@ -96,10 +96,10 @@ public partial class GameLauncherViewModel : ObservableObject
         IsAppRunning  = true;
         AppLaunched(app);  // retain Agent as fullscreen background, then let game take foreground
 
-        // Steam hands a launch request to its client and the Steam.exe process may return straight
-        // away. Keep the launcher hidden until the player explicitly returns; session cleanup still
-        // closes every process spawned after the session baseline.
-        if (isSteamGame)
+        // Both a Steam game URI and Steam.exe may hand control to an already-running Steam client
+        // and exit immediately. That hand-off is not the end of the player's application: keep
+        // Agent in external-app mode until the player explicitly returns or the session ends.
+        if (IsSteamLaunch(app))
             return;
 
         if (_currentProcess is not null)
@@ -120,6 +120,9 @@ public partial class GameLauncherViewModel : ObservableObject
         if (_currentProcess is { HasExited: false, MainWindowHandle: var hwnd } && hwnd != nint.Zero)
             NativeLauncher.ShowWindow(hwnd, NativeLauncher.SW_MINIMIZE);
 
+        _currentProcess = null;
+        RunningApp = null;
+        IsAppRunning = false;
         ReturnRequested?.Invoke();
     }
 
@@ -135,6 +138,9 @@ public partial class GameLauncherViewModel : ObservableObject
     private static bool IsSteamGameLaunch(LauncherApp app) =>
         Path.GetFileName(app.ExePath).Equals("steam.exe", StringComparison.OrdinalIgnoreCase) &&
         app.Args.StartsWith("-applaunch ", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSteamLaunch(LauncherApp app) =>
+        Path.GetFileName(app.ExePath).Equals("steam.exe", StringComparison.OrdinalIgnoreCase);
 
     private static string GetSteamAppId(LauncherApp app) =>
         app.Args["-applaunch ".Length..].Trim();

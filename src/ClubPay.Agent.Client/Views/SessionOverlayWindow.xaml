@@ -6,22 +6,5 @@
         Topmost="True" ResizeMode="NoResize" ShowInTaskbar="False"
         Width="380" SizeToContent="Height">
 
-  <StackPanel>
-    <views:ActiveSessionView x:Name="ActiveSessionControl" DataContext="{Binding ActiveSession}"/>
-
-    <!-- Shown only when a game is running; user taps to return to launcher -->
-    <Button x:Name="ReturnBtn"
-            Content="← Launcherga qaytish"
-            Margin="0,6,0,0"
-            Padding="12,8"
-            FontFamily="{StaticResource FontMono}"
-            FontSize="12"
-            Foreground="{StaticResource CyanBrush}"
-            Background="#CC0D1117"
-            BorderBrush="{StaticResource CyanBrush}"
-            BorderThickness="1"
-            Cursor="Hand"
-            Visibility="Collapsed"
-            Click="OnReturnClicked"/>
-  </StackPanel>
+  <views:ActiveSessionView x:Name="ActiveSessionControl" DataContext="{Binding ActiveSession}"/>
 </Window>

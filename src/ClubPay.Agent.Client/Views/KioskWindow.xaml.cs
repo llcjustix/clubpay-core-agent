@@ -52,9 +52,9 @@ public partial class KioskWindow : Window
         }
         else
         {
+            GameLauncherWindow.Instance?.EnterLauncherMode();
             GameLauncherWindow.Instance?.Hide();
             SessionOverlayWindow.Instance?.Hide();
-            SessionOverlayWindow.Instance?.HideReturnButton();
             Show();
             Activate();
             Focus();

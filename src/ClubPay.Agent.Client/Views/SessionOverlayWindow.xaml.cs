@@ -24,12 +24,6 @@ public partial class SessionOverlayWindow : Window
         ActiveSessionControl.ReturnToLauncherRequested += ReturnToLauncher;
     }
 
-    public void ShowReturnButton() => ReturnBtn.Visibility = Visibility.Visible;
-    public void HideReturnButton() => ReturnBtn.Visibility = Visibility.Collapsed;
-
-    private void OnReturnClicked(object sender, RoutedEventArgs e)
-        => ReturnToLauncher();
-
     private void ReturnToLauncher()
         => GameLauncherWindow.Instance?.Vm.ReturnToLauncherCommand.Execute(null);
 
