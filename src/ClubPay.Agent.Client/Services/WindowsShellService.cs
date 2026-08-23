@@ -48,6 +48,13 @@ public sealed class WindowsShellService : IWindowsShellService
 
     public void RestoreTaskbars()
     {
+        // A previous Agent instance may have hidden the taskbar and then been
+        // terminated before it could run OnExit.  Do not rely solely on the
+        // handles remembered by this process: the shell must always be
+        // restored when leaving kiosk mode.
+        foreach (var taskbar in FindTaskbars())
+            NativeShell.ShowWindow(taskbar, SwShow);
+
         foreach (var taskbar in _hiddenTaskbars)
             NativeShell.ShowWindow(taskbar, SwShow);
 

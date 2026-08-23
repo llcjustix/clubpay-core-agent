@@ -96,13 +96,30 @@ public partial class App : Application
         _startupCts?.Cancel();
         if (_services is not null)
         {
-            // Kill any running game before exit
-            _services.GetRequiredService<GameLauncherViewModel>().KillRunningApp();
-            await _services.GetRequiredService<IControllerChannel>().StopAsync();
-            await _services.GetRequiredService<ISessionCoordinator>().DisposeAsync();
-            _services.GetRequiredService<IKioskLockService>().Uninstall();
-            _services.GetRequiredService<IWindowsShellService>().RestoreTaskbars();
-            _services.Dispose();
+            // Always restore Explorer first.  OnExit is the final phase of a
+            // WPF shutdown, so awaiting network/session cleanup here can let
+            // the process terminate before Windows gets its taskbar back.
+            try
+            {
+                _services.GetRequiredService<IWindowsShellService>().RestoreTaskbars();
+            }
+            catch
+            {
+                // Shutdown must continue even if Explorer itself is restarting.
+            }
+
+            try
+            {
+                // Kill any running game before exit.
+                _services.GetRequiredService<GameLauncherViewModel>().KillRunningApp();
+                await _services.GetRequiredService<IControllerChannel>().StopAsync();
+                await _services.GetRequiredService<ISessionCoordinator>().DisposeAsync();
+                _services.GetRequiredService<IKioskLockService>().Uninstall();
+            }
+            finally
+            {
+                _services.Dispose();
+            }
         }
         base.OnExit(e);
     }
