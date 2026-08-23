@@ -15,10 +15,14 @@ public partial class GameLauncherWindow : Window
         DataContext = vm;
         InitializeComponent();
 
-        // Game launched → hide launcher, show return button in overlay
+        // A game is an external Windows process, but the ClubPay launcher must stay visible
+        // behind it. Hiding the launcher here exposed Explorer/the normal desktop whenever a
+        // game ran windowed or switched screens. The game receives foreground normally; Agent
+        // remains its fullscreen protected background.
         vm.AppLaunched += _ => Dispatcher.Invoke(() =>
         {
-            Hide();
+            if (!IsVisible)
+                Show();
             SessionOverlayWindow.Instance?.ShowReturnButton();
         });
 

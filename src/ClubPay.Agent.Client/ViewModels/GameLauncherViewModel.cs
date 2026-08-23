@@ -19,7 +19,7 @@ public partial class GameLauncherViewModel : ObservableObject
     [ObservableProperty] private string?      _launchError;
 
     public event Action?             ReturnRequested;   // show launcher window
-    public event Action<LauncherApp> AppLaunched = delegate { }; // hide launcher, game visible
+    public event Action<LauncherApp> AppLaunched = delegate { }; // external game takes foreground
 
     private Process? _currentProcess;
     private readonly ILogger<GameLauncherViewModel> _logger;
@@ -94,7 +94,7 @@ public partial class GameLauncherViewModel : ObservableObject
 
         RunningApp    = app;
         IsAppRunning  = true;
-        AppLaunched(app);  // signal to hide launcher window
+        AppLaunched(app);  // retain Agent as fullscreen background, then let game take foreground
 
         // Steam hands a launch request to its client and the Steam.exe process may return straight
         // away. Keep the launcher hidden until the player explicitly returns; session cleanup still
