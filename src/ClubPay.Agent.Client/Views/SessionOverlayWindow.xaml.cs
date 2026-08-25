@@ -8,15 +8,18 @@ public partial class SessionOverlayWindow : Window
     public static SessionOverlayWindow? Instance { get; private set; }
     private readonly IClientSessionEndService _sessionEnd;
     private readonly QrCodeService _qr;
+    private readonly LocalizationService _localizer;
 
     public SessionOverlayWindow(
         ViewModels.MainViewModel vm,
         IClientSessionEndService sessionEnd,
-        QrCodeService qr)
+        QrCodeService qr,
+        LocalizationService localizer)
     {
         DataContext = vm;
         _sessionEnd = sessionEnd;
         _qr = qr;
+        _localizer = localizer;
         Instance = this;
         InitializeComponent();
         Loaded += (_, _) => PositionTopRight();
@@ -36,7 +39,7 @@ public partial class SessionOverlayWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Не удалось завершить сеанс: " + ex.Message, "ClubPay",
+            MessageBox.Show(_localizer.Format("EndSessionFailed", ex.Message), "ClubPay",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

@@ -51,13 +51,20 @@
         <StackPanel VerticalAlignment="Center">
           <TextBlock Text="{Binding ClubName}" Foreground="White"
                      FontFamily="{StaticResource FontChakra}" FontSize="30" FontWeight="Bold"/>
-          <TextBlock Text="GAMING CLUB" Foreground="{StaticResource CyanBrush}"
+          <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[GamingClub]}" Foreground="{StaticResource CyanBrush}"
                      FontFamily="{StaticResource FontMono}" FontSize="15"/>
         </StackPanel>
       </StackPanel>
 
-      <!-- Time + Lock Badge -->
+      <!-- Language, time + lock badge -->
       <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+        <ComboBox Width="78" Height="34" Margin="0,0,18,0" Padding="5,1"
+                  Foreground="{StaticResource TextSecondary}" Background="#1AFFFFFF" BorderBrush="#3300D4FF"
+                  SelectedValue="{Binding Source={StaticResource Loc}, Path=LanguageCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                  SelectedValuePath="Tag" VerticalContentAlignment="Center">
+          <ComboBoxItem Content="RU" Tag="ru"/>
+          <ComboBoxItem Content="UZ" Tag="uz"/>
+        </ComboBox>
         <TextBlock Text="{Binding CurrentTime}" Foreground="{StaticResource TextSecondary}"
                    FontFamily="{StaticResource FontMono}" FontSize="26" FontWeight="Medium"
                    VerticalAlignment="Center" Margin="0,0,18,0"/>
@@ -69,7 +76,7 @@
                 <DropShadowEffect Color="#FFFF3B5C" BlurRadius="12" ShadowDepth="0"/>
               </Ellipse.Effect>
             </Ellipse>
-            <TextBlock Text="LOCKED · BLOKLANGAN" Foreground="{StaticResource RedSoftBrush}"
+            <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[Locked]}" Foreground="{StaticResource RedSoftBrush}"
                        FontFamily="{StaticResource FontChakra}" FontSize="18" FontWeight="SemiBold"/>
           </StackPanel>
         </Border>
@@ -124,12 +131,8 @@
       </Border>
 
       <!-- Scan hint -->
-      <TextBlock HorizontalAlignment="Center" Margin="0,18,0,0"
-                 FontFamily="{StaticResource FontChakra}" FontSize="26" FontWeight="SemiBold">
-        <Run Text="Scan to pay " Foreground="White"/>
-        <Run Text=" · " Foreground="#5A6270"/>
-        <Run Text="To'lov uchun skanerlang" Foreground="{StaticResource GreenBrush}"/>
-      </TextBlock>
+      <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToPay]}" HorizontalAlignment="Center" Margin="0,18,0,0"
+                 Foreground="{StaticResource GreenBrush}" FontFamily="{StaticResource FontChakra}" FontSize="26" FontWeight="SemiBold"/>
     </StackPanel>
 
     <!-- WIFI CORNER (bottom-left) -->
@@ -140,10 +143,10 @@
                RenderOptions.BitmapScalingMode="NearestNeighbor"/>
       </Border>
       <StackPanel Margin="16,0,0,0" VerticalAlignment="Center" MaxWidth="320">
-        <TextBlock Text="No internet? Connect to WiFi first"
+        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[NoInternet]}"
                    Foreground="{StaticResource TextSecondary}"
                    FontFamily="{StaticResource FontChakra}" FontSize="18" FontWeight="SemiBold"/>
-        <TextBlock Text="Internet yo'qmi? Avval WiFi'ga ulaning · Нет интернета? Подключитесь к WiFi"
+        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[WifiHelp]}"
                    Foreground="{StaticResource TextMuted}" TextWrapping="Wrap"
                    FontFamily="{StaticResource FontMono}" FontSize="14" Margin="0,3,0,0"/>
       </StackPanel>
@@ -152,7 +155,7 @@
     <!-- STATUS HINT (bottom-center) -->
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
                 VerticalAlignment="Bottom" Margin="0,0,0,44">
-      <TextBlock Text="Waiting for controller · Kontrollerdan buyruq kutilmoqda"
+      <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[WaitingController]}"
                  Foreground="{StaticResource TextDimmed}"
                  FontFamily="{StaticResource FontMono}" FontSize="19"
                  VerticalAlignment="Center"/>

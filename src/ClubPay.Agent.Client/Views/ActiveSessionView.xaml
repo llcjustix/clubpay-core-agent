@@ -29,6 +29,7 @@
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
           <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
             <Path Data="M13,0 L26,7.25 L26,21.75 L13,29 L0,21.75 L0,7.25 Z"
@@ -36,15 +37,22 @@
             <TextBlock Text="NEXUS ARENA" Foreground="White"
                        FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Bold"/>
           </StackPanel>
+          <ComboBox Grid.Column="1" Width="68" Height="30" Margin="0,0,10,0" Padding="4,0"
+                    Foreground="{StaticResource TextSecondary}" Background="#1AFFFFFF" BorderBrush="#3300D4FF"
+                    SelectedValue="{Binding Source={StaticResource Loc}, Path=LanguageCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    SelectedValuePath="Tag" VerticalContentAlignment="Center">
+            <ComboBoxItem Content="RU" Tag="ru"/>
+            <ComboBoxItem Content="UZ" Tag="uz"/>
+          </ComboBox>
           <!-- Player menu. Windows controls stay hidden; player actions live here instead. -->
-          <Button Grid.Column="1" Width="32" Height="32" Padding="0"
+          <Button Grid.Column="2" Width="32" Height="32" Padding="0"
                   Background="#0FFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
-                  Cursor="Hand" Click="OnMenuClicked" ToolTip="Меню">
+                  Cursor="Hand" Click="OnMenuClicked" ToolTip="{Binding Source={StaticResource Loc}, Path=[Menu]}">
             <TextBlock Text="⋮" FontSize="20" Foreground="{StaticResource TextSecondary}"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
             <Button.ContextMenu>
               <ContextMenu>
-                <MenuItem Header="Завершить сеанс" Click="OnEndSessionClicked"/>
+                <MenuItem Header="{Binding Source={StaticResource Loc}, Path=[EndSession]}" Click="OnEndSessionClicked"/>
               </ContextMenu>
             </Button.ContextMenu>
           </Button>
@@ -58,7 +66,7 @@
               <DropShadowEffect Color="#FF00FF88" BlurRadius="10" ShadowDepth="0"/>
             </Ellipse.Effect>
           </Ellipse>
-          <TextBlock Text="ACTIVE SESSION · FAOL SEANS" Foreground="{StaticResource GreenBrush}"
+          <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ActiveSession]}" Foreground="{StaticResource GreenBrush}"
                      FontFamily="{StaticResource FontMono}" FontSize="16"/>
         </StackPanel>
 
@@ -85,7 +93,7 @@
             </EventTrigger>
           </TextBlock.Triggers>
         </TextBlock>
-        <TextBlock Text="remaining · qolgan vaqt · осталось"
+        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[Remaining]}"
                    Foreground="{StaticResource TextMuted}"
                    FontFamily="{StaticResource FontMono}" FontSize="13"/>
 
@@ -103,8 +111,6 @@
               <StackPanel Grid.Column="0">
                 <TextBlock Text="{Binding ZoneLabel}" Foreground="White"
                            FontFamily="{StaticResource FontChakra}" FontSize="18" FontWeight="SemiBold"/>
-                <TextBlock Text="{Binding ZoneLabelUz}" Foreground="{StaticResource TextMuted}"
-                           FontFamily="{StaticResource FontMono}" FontSize="12" Margin="0,2,0,0"/>
               </StackPanel>
               <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                 <TextBlock Text="{Binding TariffLabel}" Foreground="{StaticResource CyanBrush}"
@@ -147,17 +153,10 @@
                    RenderOptions.BitmapScalingMode="NearestNeighbor"/>
           </Border>
           <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
-            <TextBlock FontFamily="{StaticResource FontChakra}" FontSize="17" FontWeight="SemiBold">
-              <Run Text="Scan to extend" Foreground="White"/>
-              <LineBreak/>
-              <Run Text="session" Foreground="{StaticResource CyanBrush}"/>
-            </TextBlock>
-            <TextBlock Foreground="{StaticResource TextMuted}"
-                       FontFamily="{StaticResource FontMono}" FontSize="12" Margin="0,4,0,0">
-              <Run Text="Seansni uzaytirish"/>
-              <LineBreak/>
-              <Run Text="uchun skanerlang"/>
-            </TextBlock>
+            <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToExtendSession]}" Foreground="{StaticResource CyanBrush}"
+                       FontFamily="{StaticResource FontChakra}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToExtendHelp]}" Foreground="{StaticResource TextMuted}"
+                       FontFamily="{StaticResource FontMono}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"/>
           </StackPanel>
         </Grid>
       </StackPanel>

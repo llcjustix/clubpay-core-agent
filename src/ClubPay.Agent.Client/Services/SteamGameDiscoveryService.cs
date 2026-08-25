@@ -11,7 +11,10 @@ namespace ClubPay.Agent.Client.Services;
 /// Reads the Steam libraries installed on this PC. ClubPay never downloads games or handles
 /// licences: it only exposes games that Steam has already installed for the current Windows user.
 /// </summary>
-public sealed class SteamGameDiscoveryService(IConfiguration config, ILogger<SteamGameDiscoveryService> logger)
+public sealed class SteamGameDiscoveryService(
+    IConfiguration config,
+    LocalizationService localizer,
+    ILogger<SteamGameDiscoveryService> logger)
 {
     private static readonly Regex VdfPath = new("\\\"path\\\"\\s+\\\"(?<value>[^\\\"]+)\\\"", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex ManifestAppId = new("\\\"appid\\\"\\s+\\\"(?<value>\\d+)\\\"", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -34,7 +37,7 @@ public sealed class SteamGameDiscoveryService(IConfiguration config, ILogger<Ste
         // launching a game. The Agent remains fullscreen behind the Steam window.
         var apps = new List<LauncherApp>
         {
-            new("Steam", steamExe, Category: "Platform")
+            new("Steam", steamExe, Category: localizer["Platform"])
         };
 
         foreach (var manifest in roots.SelectMany(GetManifestFiles))
@@ -52,7 +55,7 @@ public sealed class SteamGameDiscoveryService(IConfiguration config, ILogger<Ste
                 if (appId == "228980" || name.Equals("Steamworks Common Redistributables", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                apps.Add(new LauncherApp(name, steamExe, $"-applaunch {appId}", Category: "O'yin"));
+                apps.Add(new LauncherApp(name, steamExe, $"-applaunch {appId}", Category: localizer["Game"]));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -63,7 +66,7 @@ public sealed class SteamGameDiscoveryService(IConfiguration config, ILogger<Ste
         return apps
             .GroupBy(app => app.Args, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
-            .OrderBy(app => app.Category == "Platform" ? 0 : 1)
+            .OrderBy(app => app.Name == "Steam" ? 0 : 1)
             .ThenBy(app => app.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
     }

@@ -35,6 +35,7 @@ public partial class App : Application
         var sc = new ServiceCollection();
 
         sc.AddSingleton<IConfiguration>(config);
+        sc.AddSingleton<LocalizationService>();
 
         // AgentStateRepository backs three interfaces from one file — register the concrete type once
         // and forward all three to the same instance (three separate AddSingleton<T,TImpl> calls would
@@ -70,6 +71,7 @@ public partial class App : Application
         sc.AddSingleton<GameLauncherWindow>();
 
         _services = sc.BuildServiceProvider();
+        Resources["Loc"] = _services.GetRequiredService<LocalizationService>();
         _startupCts = new CancellationTokenSource();
 
         _services.GetRequiredService<IKioskLockService>().Install();

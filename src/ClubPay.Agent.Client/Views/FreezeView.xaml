@@ -37,6 +37,14 @@
 
     <Grid Margin="96,0">
 
+      <ComboBox Width="78" Height="34" Padding="5,1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,54,0,0"
+                Foreground="{StaticResource TextSecondary}" Background="#1AFFFFFF" BorderBrush="#66FF3B5C"
+                SelectedValue="{Binding Source={StaticResource Loc}, Path=LanguageCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                SelectedValuePath="Tag" VerticalContentAlignment="Center">
+        <ComboBoxItem Content="RU" Tag="ru"/>
+        <ComboBoxItem Content="UZ" Tag="uz"/>
+      </ComboBox>
+
       <!-- HEADER: SESSION FROZEN -->
       <Border HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,54,0,0"
               CornerRadius="999" BorderThickness="1" BorderBrush="#72FF3B5C"
@@ -58,7 +66,7 @@
               </EventTrigger>
             </Ellipse.Triggers>
           </Ellipse>
-          <TextBlock Text="SESSION FROZEN · SEANS MUZLATILDI"
+          <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[SessionFrozen]}"
                      Foreground="{StaticResource RedSoftBrush}"
                      FontFamily="{StaticResource FontChakra}" FontSize="22"
                      FontWeight="SemiBold"/>
@@ -67,7 +75,7 @@
 
       <!-- GRACE TIMER + BAR -->
       <StackPanel VerticalAlignment="Top" Margin="0,118,0,0" HorizontalAlignment="Center">
-        <TextBlock Text="GRACE PERIOD · IMTIYOZ VAQTI · ЛЬГОТНОЕ ВРЕМЯ"
+        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[GracePeriod]}"
                    HorizontalAlignment="Center" Foreground="{StaticResource TextMuted}"
                    FontFamily="{StaticResource FontMono}" FontSize="18"/>
 
@@ -133,10 +141,10 @@
           <Image Source="{Binding ExtendQrImage}" Width="320" Height="320"
                  RenderOptions.BitmapScalingMode="NearestNeighbor"/>
         </Border>
-        <TextBlock Text="Scan to continue playing" HorizontalAlignment="Center"
+        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToContinuePlaying]}" HorizontalAlignment="Center"
                    Foreground="White" FontFamily="{StaticResource FontChakra}"
                    FontSize="30" FontWeight="SemiBold" Margin="0,20,0,0"/>
-        <TextBlock Text="O'ynashni davom ettirish uchun skanerlang" HorizontalAlignment="Center"
+        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToContinuePlayingHelp]}" HorizontalAlignment="Center"
                    Foreground="{StaticResource GreenBrush}"
                    FontFamily="{StaticResource FontMono}" FontSize="19" Margin="0,4,0,0"/>
       </StackPanel>

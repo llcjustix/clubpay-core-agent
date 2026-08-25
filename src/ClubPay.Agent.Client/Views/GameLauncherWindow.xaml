@@ -38,6 +38,7 @@
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
 
           <!-- Logo + club + pc -->
@@ -59,8 +60,15 @@
                        FontSize="15" Foreground="{StaticResource CyanBrush}" VerticalAlignment="Center"/>
           </StackPanel>
 
+          <ComboBox Grid.Column="1" Width="68" Height="30" Margin="0,0,18,0"
+                    SelectedValue="{Binding Source={StaticResource Loc}, Path=LanguageCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    SelectedValuePath="Tag" VerticalContentAlignment="Center">
+            <ComboBoxItem Tag="ru" Content="RU"/>
+            <ComboBoxItem Tag="uz" Content="UZ"/>
+          </ComboBox>
+
           <!-- Running app indicator -->
-          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+          <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
                       Visibility="{Binding IsAppRunning, Converter={StaticResource BoolVis}}">
             <Ellipse Width="8" Height="8" Fill="{StaticResource GreenBrush}" Margin="0,0,8,0">
               <Ellipse.Effect>
@@ -70,7 +78,8 @@
             <TextBlock FontFamily="{StaticResource FontMono}" FontSize="14"
                        Foreground="{StaticResource GreenBrush}">
               <Run Text="{Binding RunningApp.Name, Mode=OneWay}"/>
-              <Run Text=" ishlamoqda" Foreground="{StaticResource TextMuted}"/>
+              <Run Text=" "/>
+              <Run Text="{Binding Source={StaticResource Loc}, Path=[Running]}" Foreground="{StaticResource TextMuted}"/>
             </TextBlock>
           </StackPanel>
         </Grid>
@@ -93,7 +102,7 @@
 
           <!-- Launcher button deliberately returns to the Agent UI without closing apps. -->
           <Button Grid.Column="0" Width="42" Height="42" Cursor="Hand"
-                  ToolTip="ClubPay launcher" Command="{Binding ShowLauncherCommand}"
+                  ToolTip="{Binding Source={StaticResource Loc}, Path=[OpenLauncher]}" Command="{Binding ShowLauncherCommand}"
                   Background="#1C00D4FF" BorderBrush="#4000D4FF" BorderThickness="1">
             <Button.Template>
               <ControlTemplate TargetType="Button">
@@ -119,14 +128,14 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
                   <Button Margin="0,0,8,0" Height="42" MinWidth="132" MaxWidth="240"
-                          Cursor="Hand" ToolTip="Открыть приложение"
+                          Cursor="Hand" ToolTip="{Binding Source={StaticResource Loc}, Path=[OpenApplication]}"
                           Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                           Command="{Binding DataContext.FocusRunningAppCommand,
                                     RelativeSource={RelativeSource AncestorType=Window}}"
                           CommandParameter="{Binding}">
                     <Button.ContextMenu>
                       <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
-                        <MenuItem Header="Закрыть приложение"
+                        <MenuItem Header="{Binding Source={StaticResource Loc}, Path=[CloseApplication]}"
                                   Command="{Binding CloseRunningAppCommand}"
                                   CommandParameter="{Binding PlacementTarget.DataContext,
                                     RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
@@ -169,7 +178,7 @@
             </ItemsControl>
           </ScrollViewer>
 
-          <TextBlock Grid.Column="3" Text="Открытые приложения" VerticalAlignment="Center"
+          <TextBlock Grid.Column="3" Text="{Binding Source={StaticResource Loc}, Path=[OpenApplications]}" VerticalAlignment="Center"
                      FontFamily="{StaticResource FontMono}" FontSize="11"
                      Foreground="{StaticResource TextMuted}" Margin="12,0,0,0"
                      Visibility="{Binding IsAppRunning, Converter={StaticResource BoolVis}}"/>
@@ -183,7 +192,7 @@
         <StackPanel>
 
           <!-- Section label -->
-          <TextBlock Text="O'YINLAR VA DASTURLAR"
+          <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[GamesAndApps]}"
                      FontFamily="{StaticResource FontMono}" FontSize="11"
                      Foreground="{StaticResource TextMuted}" Margin="0,0,0,24"/>
 

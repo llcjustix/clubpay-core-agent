@@ -8,22 +8,22 @@ public partial class VoucherDeliveryDialog : Window
     public VoucherDeliveryDialog(ClientSessionEndResult result, QrCodeService qr)
     {
         InitializeComponent();
-        VoucherCodeText.Text = string.IsNullOrWhiteSpace(result.VoucherCode) ? string.Empty : $"Ваучер: {result.VoucherCode}";
+        VoucherCodeText.Text = string.IsNullOrWhiteSpace(result.VoucherCode) ? string.Empty : $"{L("Voucher")}: {result.VoucherCode}";
 
         if (result.DeliveryStatus == "sent")
         {
-            MessageText.Text = "Ваучер отправлен в Telegram. Проверьте сообщения.";
+            MessageText.Text = L("VoucherSent");
             QrBorder.Visibility = Visibility.Collapsed;
             TelegramBotText.Visibility = Visibility.Collapsed;
         }
         else if (!string.IsNullOrWhiteSpace(result.TelegramLink))
         {
             var username = GetBotUsername(result);
-            TitleText.Text = "Получите ваучер в Telegram";
-            MessageText.Text = "Отсканируйте QR, откройте бота и нажмите Start. После привязки номера ваучер придёт автоматически.";
+            TitleText.Text = L("GetVoucherInTelegram");
+            MessageText.Text = L("OpenTelegramBotAndStart");
             TelegramBotText.Text = string.IsNullOrWhiteSpace(username)
                 ? ""
-                : $"Или найдите в Telegram: @{username}";
+                : $"{L("FindTelegramBot")}: @{username}";
             TelegramBotText.Visibility = string.IsNullOrWhiteSpace(username)
                 ? Visibility.Collapsed
                 : Visibility.Visible;
@@ -32,8 +32,8 @@ public partial class VoucherDeliveryDialog : Window
         else
         {
             MessageText.Text = result.DeliveryStatus == "telegram_not_configured"
-                ? "Ваучер создан, но Telegram-бот пока не настроен. Сохраните код и обратитесь к администратору."
-                : "Ваучер создан. Если он не пришёл в Telegram, обратитесь к администратору.";
+                ? L("VoucherBotNotConfigured")
+                : L("VoucherNotDelivered");
             QrBorder.Visibility = Visibility.Collapsed;
             TelegramBotText.Visibility = Visibility.Collapsed;
         }
@@ -50,4 +50,9 @@ public partial class VoucherDeliveryDialog : Window
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
+
+    private static string L(string key)
+        => Application.Current?.TryFindResource("Loc") is LocalizationService localizer
+            ? localizer[key]
+            : key;
 }

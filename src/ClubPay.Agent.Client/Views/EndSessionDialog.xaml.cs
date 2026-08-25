@@ -1,4 +1,5 @@
 using System.Windows;
+using ClubPay.Agent.Client.Services;
 
 namespace ClubPay.Agent.Client.Views;
 
@@ -15,16 +16,21 @@ public partial class EndSessionDialog : Window
     {
         if (string.IsNullOrWhiteSpace(RecipientPhone) || RecipientPhone == "+998")
         {
-            MessageBox.Show("Укажите номер телефона для отправки ваучера в Telegram.", "ClubPay",
+            MessageBox.Show(L("PhoneRequired"), "ClubPay",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         if (!RecipientConsent)
         {
-            MessageBox.Show("Нужно согласие на хранение номера и отправку ваучера в Telegram.", "ClubPay",
+            MessageBox.Show(L("ConsentRequired"), "ClubPay",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         DialogResult = true;
     }
+
+    private static string L(string key)
+        => Application.Current?.TryFindResource("Loc") is LocalizationService localizer
+            ? localizer[key]
+            : key;
 }

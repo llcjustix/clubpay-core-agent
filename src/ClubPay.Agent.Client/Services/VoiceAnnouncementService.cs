@@ -9,7 +9,10 @@ namespace ClubPay.Agent.Client.Services;
 /// Uses Windows' built-in SAPI through PowerShell. Failure to play a voice prompt must never affect
 /// the session timer or payment flow, so unavailable voices are logged and ignored.
 /// </summary>
-public sealed class VoiceAnnouncementService(IConfiguration config, ILogger<VoiceAnnouncementService> logger)
+public sealed class VoiceAnnouncementService(
+    IConfiguration config,
+    LocalizationService localizer,
+    ILogger<VoiceAnnouncementService> logger)
     : IVoiceAnnouncementService
 {
     private readonly bool _enabled = config.GetValue("Agent:VoiceAnnouncementsEnabled", true);
@@ -21,10 +24,10 @@ public sealed class VoiceAnnouncementService(IConfiguration config, ILogger<Voic
 
         var text = remainingSeconds switch
         {
-            1800 => "До окончания сессии осталось тридцать минут.",
-            600 => "До окончания сессии осталось десять минут.",
-            300 => "До окончания сессии осталось пять минут.",
-            _ => $"До окончания сессии осталось {Math.Max(1, remainingSeconds / 60)} минут."
+            1800 => localizer["TimeLeft30"],
+            600 => localizer["TimeLeft10"],
+            300 => localizer["TimeLeft5"],
+            _ => localizer.Format("TimeLeftGeneric", Math.Max(1, remainingSeconds / 60))
         };
 
         try
@@ -35,7 +38,7 @@ public sealed class VoiceAnnouncementService(IConfiguration config, ILogger<Voic
                          "$voice = New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
                          "try { $voice.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::NotSet, " +
                          "[System.Speech.Synthesis.VoiceAge]::NotSet, 0, " +
-                         "[System.Globalization.CultureInfo]'ru-RU') } catch {}; " +
+                         "[System.Globalization.CultureInfo]'" + localizer.CultureName + "') } catch {}; " +
                          "$voice.Speak([System.Text.Encoding]::Unicode.GetString(" +
                          "[System.Convert]::FromBase64String('" + encodedText + "')));";
             using var process = new Process

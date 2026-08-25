@@ -27,6 +27,9 @@ public partial class GameLauncherViewModel : ObservableObject
 
     private readonly Dictionary<LauncherApp, Process?> _runningProcesses = [];
     private readonly ILogger<GameLauncherViewModel> _logger;
+    private readonly IConfiguration _config;
+    private readonly SteamGameDiscoveryService _steamGames;
+    private readonly LocalizationService _localizer;
 
     public string ClubName { get; }
     public string PcId     { get; }
@@ -34,13 +37,28 @@ public partial class GameLauncherViewModel : ObservableObject
     public GameLauncherViewModel(
         IConfiguration config,
         SteamGameDiscoveryService steamGames,
+        LocalizationService localizer,
         ILogger<GameLauncherViewModel> logger)
     {
         _logger = logger;
+        _config = config;
+        _steamGames = steamGames;
+        _localizer = localizer;
         ClubName = config["Agent:ClubName"] ?? "NEXUS ARENA";
         PcId     = config["Agent:PcId"]     ?? "PC-01";
 
-        var section = config.GetSection("Launcher:Apps");
+        _localizer.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == "Item[]")
+                RefreshApps();
+        };
+        RefreshApps();
+    }
+
+    private void RefreshApps()
+    {
+        Apps.Clear();
+        var section = _config.GetSection("Launcher:Apps");
         foreach (var item in section.GetChildren())
         {
             var app = new LauncherApp(
@@ -48,18 +66,34 @@ public partial class GameLauncherViewModel : ObservableObject
                 ExePath:  item["ExePath"]  ?? "",
                 Args:     item["Args"]     ?? "",
                 IconPath: item["IconPath"] ?? "",
-                Category: item["Category"] ?? "O'yin");
+                Category: LocalizeCategory(item["Category"]));
             // Never show an attractive but non-working tile: configured apps must exist locally.
             if (IsPlayerLaunchable(app) && File.Exists(app.ExePath))
                 Apps.Add(app);
         }
 
-        foreach (var app in steamGames.Discover())
+        foreach (var app in _steamGames.Discover())
         {
             if (!Apps.Any(existing => string.Equals(existing.Args, app.Args, StringComparison.OrdinalIgnoreCase) &&
                                       string.Equals(existing.ExePath, app.ExePath, StringComparison.OrdinalIgnoreCase)))
                 Apps.Add(app);
         }
+    }
+
+    private string LocalizeCategory(string? category)
+    {
+        if (string.IsNullOrWhiteSpace(category) ||
+            category.Equals("Game", StringComparison.OrdinalIgnoreCase) ||
+            category.Equals("Игра", StringComparison.OrdinalIgnoreCase) ||
+            category.Equals("O'yin", StringComparison.OrdinalIgnoreCase))
+            return _localizer["Game"];
+
+        if (category.Equals("Platform", StringComparison.OrdinalIgnoreCase) ||
+            category.Equals("Платформа", StringComparison.OrdinalIgnoreCase) ||
+            category.Equals("Platforma", StringComparison.OrdinalIgnoreCase))
+            return _localizer["Platform"];
+
+        return category;
     }
 
     [RelayCommand]
@@ -103,7 +137,7 @@ public partial class GameLauncherViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not launch {AppName}", app.Name);
-            LaunchError = $"Не удалось запустить «{app.Name}». Проверьте, что Steam установлен и пользователь вошёл в аккаунт.";
+            LaunchError = _localizer.Format("LaunchFailed", app.Name);
             return;
         }
 
