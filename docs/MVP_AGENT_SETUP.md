@@ -15,7 +15,25 @@ run a local Controller or expose an inbound port.
 5. Start the Agent. It first opens WSS and asks Core bootstrap for the static public QR URL. The
    static QR must never be assembled from `external_pc_id` locally.
 
-For a staging VM, use `--install` only. Do **not** enable `--shell` or `--autologin` while testing.
+## Automatic startup on a club PC
+
+The Agent must **not** be started manually on a club PC. The one-time installation below registers
+it in Windows Startup and configures automatic login for the dedicated kiosk Windows account:
+
+```bat
+ClubPay.Agent.Client.exe --setup-kiosk=kiosk:YOUR_WINDOWS_PASSWORD
+```
+
+Run this command once from an **Administrator** Command Prompt. It copies the build to
+`C:\ClubPay\Agent`, registers the installed copy in Windows Startup, and configures auto-login.
+Then reboot the PC. After reboot, the kiosk account should log in and Agent Core should appear
+without any manual action.
+
+`--setup-kiosk` deliberately does not replace `explorer.exe`. Agent Core hides Windows while it is
+running and the maintenance workflow can safely restore it. Do not use `--shell` for the pilot.
+
+For a staging VM, use `--install` only if you explicitly want to keep manual Windows login. Do
+**not** enable `--shell` or `--autologin` while testing without a dedicated kiosk account.
 
 ## Maintenance mode for a test VM
 

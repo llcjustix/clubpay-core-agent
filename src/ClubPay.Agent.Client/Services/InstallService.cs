@@ -12,6 +12,7 @@ namespace ClubPay.Agent.Client.Services;
 /// Must run elevated (admin) for HKLM registry writes.
 /// Usage:
 ///   ClubPay.Agent.Client.exe --install [--shell]
+///   ClubPay.Agent.Client.exe --setup-kiosk=username:password
 ///   ClubPay.Agent.Client.exe --uninstall
 ///   ClubPay.Agent.Client.exe --autologin=kiosk:password
 /// </summary>

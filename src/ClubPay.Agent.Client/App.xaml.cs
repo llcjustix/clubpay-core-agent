@@ -18,7 +18,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // Installer mode — handles --install / --uninstall / --autologin args then exits
+        // Installer mode — handles --install / --setup-kiosk / --uninstall / --autologin args then exits
         if (HandleInstallerArgs(e.Args))
         {
             Shutdown(0);
@@ -129,12 +129,13 @@ public partial class App : Application
     private static bool HandleInstallerArgs(string[] args)
     {
         bool isInstall = args.Contains("--install");
+        var kioskSetupArg = Array.Find(args, a => a.StartsWith("--setup-kiosk="));
         bool isUninstall = args.Contains("--uninstall");
         bool isStatus = args.Contains("--status");
         var loginArg = Array.Find(args, a => a.StartsWith("--autologin="));
         var noLoginArg = args.Contains("--disable-autologin");
 
-        if (!isInstall && !isUninstall && !isStatus && loginArg is null && !noLoginArg)
+        if (!isInstall && kioskSetupArg is null && !isUninstall && !isStatus && loginArg is null && !noLoginArg)
             return false;
 
         // --status is read-only, no elevation needed
@@ -159,7 +160,31 @@ public partial class App : Application
             return true;
         }
 
-        if (isInstall)
+        // Pilot/production one-time setup: install the files, register startup and
+        // configure a dedicated Windows kiosk account to log in after a reboot.
+        // We intentionally do not replace explorer.exe: the Agent hides the Windows
+        // shell while it is running and can restore it for maintenance.
+        if (kioskSetupArg is not null)
+        {
+            var val = kioskSetupArg["--setup-kiosk=".Length..];
+            var colon = val.IndexOf(':');
+            var user = colon >= 0 ? val[..colon] : val;
+            var pass = colon >= 0 ? val[(colon + 1)..] : "";
+
+            if (string.IsNullOrWhiteSpace(user))
+                throw new ArgumentException("Kiosk user is required for --setup-kiosk.");
+
+            InstallService.Install();
+            InstallService.SetupAutoLogin(user, pass);
+            MessageBox.Show(
+                $"O'rnatildi: {InstallService.InstallDir}\n" +
+                $"Auto-login sozlandi: {user}\n" +
+                "Windows Startup'ga qo'shildi.\n\n" +
+                "Kompyuterni qayta yuring — Agent avtomatik ishga tushadi.",
+                "ClubPay Agent — Kiosk tayyor",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        else if (isInstall)
         {
             bool shell = args.Contains("--shell");
             InstallService.Install(setShellReplacement: shell);
