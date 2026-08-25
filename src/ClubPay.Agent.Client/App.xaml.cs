@@ -1,3 +1,5 @@
+using System.IO;
+using System.Text;
 using System.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,79 +20,140 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // Installer mode — handles --install / --setup-kiosk / --uninstall / --autologin args then exits
-        if (HandleInstallerArgs(e.Args))
+        try
         {
-            Shutdown(0);
-            return;
+            // Installer mode — handles --install / --setup-kiosk / --uninstall / --autologin args then exits
+            if (HandleInstallerArgs(e.Args))
+            {
+                Shutdown(0);
+                return;
+            }
+
+            // ── Normal kiosk startup ──────────────────────────────────────────
+            var config = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+                .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false)
+                .Build();
+
+            var sc = new ServiceCollection();
+
+            sc.AddSingleton<IConfiguration>(config);
+            sc.AddSingleton<LocalizationService>();
+
+            // AgentStateRepository backs three interfaces from one file — register the concrete type once
+            // and forward all three to the same instance (three separate AddSingleton<T,TImpl> calls would
+            // otherwise create three different instances writing to the same file independently).
+            sc.AddSingleton<AgentStateRepository>();
+            sc.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<AgentStateRepository>());
+            sc.AddSingleton<IGrantIdempotencyStore>(sp => sp.GetRequiredService<AgentStateRepository>());
+            sc.AddSingleton<IControllerOutbox>(sp => sp.GetRequiredService<AgentStateRepository>());
+
+            sc.AddSingleton<IAgentService, AgentService>();
+            sc.AddSingleton<IKioskLockService, KioskLockService>();
+            sc.AddSingleton<IWindowsShellService, WindowsShellService>();
+            sc.AddSingleton<IProcessCleanupService, ProcessCleanupService>();
+            sc.AddSingleton<IIdleDetectionService, IdleDetectionService>();
+            sc.AddSingleton<ISystemClock, SystemClock>();
+            sc.AddSingleton<IVoiceAnnouncementService, VoiceAnnouncementService>();
+            sc.AddSingleton<SteamGameDiscoveryService>();
+            sc.AddSingleton<IClientSessionEndService, ClientSessionEndService>();
+            sc.AddSingleton<ISessionCoordinator, SessionCoordinatorService>();
+            sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();
+            sc.AddSingleton<IControllerChannel, ControllerChannelService>();
+            sc.AddSingleton<QrCodeService>();
+            sc.AddLogging(b => b.AddDebug());
+
+            sc.AddSingleton<LockScreenViewModel>();
+            sc.AddSingleton<ActiveSessionViewModel>();
+            sc.AddSingleton<FreezeViewModel>();
+            sc.AddSingleton<MainViewModel>();
+            sc.AddSingleton<GameLauncherViewModel>();
+
+            sc.AddSingleton<KioskWindow>();
+            sc.AddSingleton<SessionOverlayWindow>();
+            sc.AddSingleton<GameLauncherWindow>();
+
+            _services = sc.BuildServiceProvider();
+            Resources["Loc"] = _services.GetRequiredService<LocalizationService>();
+            _startupCts = new CancellationTokenSource();
+
+            _services.GetRequiredService<IKioskLockService>().Install();
+
+            // Recover persisted session state (survives a crash/restart) before anything else touches it.
+            await _services.GetRequiredService<AgentStateRepository>().LoadAsync(_startupCts.Token);
+            await _services.GetRequiredService<ISessionCoordinator>().StartAsync(_startupCts.Token);
+            await _services.GetRequiredService<IControllerChannel>().StartAsync(_startupCts.Token);
+            // Bootstrap is deliberately non-blocking: a transient Core/network outage must not keep a
+            // Windows PC from reaching its locked kiosk screen. LockScreenViewModel refreshes its QR
+            // when the backend response eventually arrives.
+            _ = _services.GetRequiredService<IAgentService>().RefreshStaticPaymentQrUrlAsync(_startupCts.Token);
+
+            _ = _services.GetRequiredService<SessionOverlayWindow>();
+            _ = _services.GetRequiredService<GameLauncherWindow>();  // creates Instance
+            var kiosk = _services.GetRequiredService<KioskWindow>();
+
+            // Explorer must remain available until the kiosk has actually rendered.
+            // Show() only schedules the WPF window; hiding the taskbar immediately
+            // after it can leave a black/empty desktop if rendering is delayed or a
+            // display driver/RDP session rejects the first window activation.
+            var taskbarHidden = false;
+            kiosk.ContentRendered += (_, _) =>
+            {
+                if (taskbarHidden)
+                    return;
+
+                taskbarHidden = true;
+                _services?.GetRequiredService<IWindowsShellService>().HideTaskbars();
+            };
+
+            FullScreenWindow.CoverPrimaryScreen(kiosk);
+            kiosk.Show();
+            kiosk.Activate();
+
+            _ = _services.GetRequiredService<MainViewModel>().InitializeAsync(_startupCts.Token);
+        }
+        catch (Exception ex)
+        {
+            ReportStartupFailure(ex);
+        }
+    }
+
+    private void ReportStartupFailure(Exception ex)
+    {
+        var logPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "ClubPay", "Agent", "startup-error.log");
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+            File.AppendAllText(
+                logPath,
+                $"[{DateTimeOffset.Now:O}]{Environment.NewLine}{ex}{Environment.NewLine}{new string('-', 80)}{Environment.NewLine}",
+                Encoding.UTF8);
+        }
+        catch
+        {
+            // The UI below is still useful when the disk itself is unavailable.
         }
 
-        // ── Normal kiosk startup ──────────────────────────────────────────────
-        var config = new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
-            .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false)
-            .Build();
+        try
+        {
+            _services?.GetRequiredService<IWindowsShellService>().RestoreTaskbars();
+        }
+        catch
+        {
+            // Do not suppress the error dialog just because Explorer is restarting.
+        }
 
-        var sc = new ServiceCollection();
+        MessageBox.Show(
+            $"ClubPay Agent не удалось запустить.\n\nПодробности записаны в:\n{logPath}",
+            "ClubPay Agent",
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
 
-        sc.AddSingleton<IConfiguration>(config);
-        sc.AddSingleton<LocalizationService>();
-
-        // AgentStateRepository backs three interfaces from one file — register the concrete type once
-        // and forward all three to the same instance (three separate AddSingleton<T,TImpl> calls would
-        // otherwise create three different instances writing to the same file independently).
-        sc.AddSingleton<AgentStateRepository>();
-        sc.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<AgentStateRepository>());
-        sc.AddSingleton<IGrantIdempotencyStore>(sp => sp.GetRequiredService<AgentStateRepository>());
-        sc.AddSingleton<IControllerOutbox>(sp => sp.GetRequiredService<AgentStateRepository>());
-
-        sc.AddSingleton<IAgentService, AgentService>();
-        sc.AddSingleton<IKioskLockService, KioskLockService>();
-        sc.AddSingleton<IWindowsShellService, WindowsShellService>();
-        sc.AddSingleton<IProcessCleanupService, ProcessCleanupService>();
-        sc.AddSingleton<IIdleDetectionService, IdleDetectionService>();
-        sc.AddSingleton<ISystemClock, SystemClock>();
-        sc.AddSingleton<IVoiceAnnouncementService, VoiceAnnouncementService>();
-        sc.AddSingleton<SteamGameDiscoveryService>();
-        sc.AddSingleton<IClientSessionEndService, ClientSessionEndService>();
-        sc.AddSingleton<ISessionCoordinator, SessionCoordinatorService>();
-        sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();
-        sc.AddSingleton<IControllerChannel, ControllerChannelService>();
-        sc.AddSingleton<QrCodeService>();
-        sc.AddLogging(b => b.AddDebug());
-
-        sc.AddSingleton<LockScreenViewModel>();
-        sc.AddSingleton<ActiveSessionViewModel>();
-        sc.AddSingleton<FreezeViewModel>();
-        sc.AddSingleton<MainViewModel>();
-        sc.AddSingleton<GameLauncherViewModel>();
-
-        sc.AddSingleton<KioskWindow>();
-        sc.AddSingleton<SessionOverlayWindow>();
-        sc.AddSingleton<GameLauncherWindow>();
-
-        _services = sc.BuildServiceProvider();
-        Resources["Loc"] = _services.GetRequiredService<LocalizationService>();
-        _startupCts = new CancellationTokenSource();
-
-        _services.GetRequiredService<IKioskLockService>().Install();
-        _services.GetRequiredService<IWindowsShellService>().HideTaskbars();
-
-        // Recover persisted session state (survives a crash/restart) before anything else touches it.
-        await _services.GetRequiredService<AgentStateRepository>().LoadAsync(_startupCts.Token);
-        await _services.GetRequiredService<ISessionCoordinator>().StartAsync(_startupCts.Token);
-        await _services.GetRequiredService<IControllerChannel>().StartAsync(_startupCts.Token);
-        // Bootstrap is deliberately non-blocking: a transient Core/network outage must not keep a
-        // Windows PC from reaching its locked kiosk screen. LockScreenViewModel refreshes its QR
-        // when the backend response eventually arrives.
-        _ = _services.GetRequiredService<IAgentService>().RefreshStaticPaymentQrUrlAsync(_startupCts.Token);
-
-        _ = _services.GetRequiredService<SessionOverlayWindow>();
-        _ = _services.GetRequiredService<GameLauncherWindow>();  // creates Instance
-        _services.GetRequiredService<KioskWindow>().Show();
-
-        _ = _services.GetRequiredService<MainViewModel>().InitializeAsync(_startupCts.Token);
+        Shutdown(-1);
     }
 
     protected override async void OnExit(ExitEventArgs e)
