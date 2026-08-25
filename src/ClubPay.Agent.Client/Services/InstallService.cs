@@ -53,6 +53,15 @@ public static class InstallService
     private static void CopyFiles()
     {
         var srcDir = AppContext.BaseDirectory.TrimEnd('\\', '/');
+        // A common update workflow publishes straight into C:\\ClubPay\\Agent.
+        // In that case the installed build is already in place, so copying every
+        // file onto itself would fail before startup/autologin can be registered.
+        if (string.Equals(
+                Path.GetFullPath(srcDir).TrimEnd('\\', '/'),
+                Path.GetFullPath(InstallDir).TrimEnd('\\', '/'),
+                StringComparison.OrdinalIgnoreCase))
+            return;
+
         Directory.CreateDirectory(InstallDir);
 
         foreach (var src in Directory.EnumerateFiles(srcDir, "*", SearchOption.AllDirectories))
