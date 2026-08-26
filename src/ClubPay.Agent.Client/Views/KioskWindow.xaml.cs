@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Extensions.Configuration;
 using ClubPay.Agent.Client.ViewModels;
 
@@ -45,16 +46,19 @@ public partial class KioskWindow : Window
     {
         if (Vm.IsActive)
         {
-            // Do not hide the only full-screen Agent surface before the launcher is
-            // ready. Hiding it first leaves a brief frame where Explorer/Windows is
-            // visible during a successful payment → session transition.
-            //
-            // Keep the kiosk as the opaque background, but drop its topmost flag so
-            // the player launcher can sit above it. It is restored to topmost as
-            // soon as the session ends.
+            // The launcher is the active-session shell. Keeping this full-screen
+            // KioskWindow visible below it works only while the launcher is topmost;
+            // once a player app opens, the launcher becomes a normal window and the
+            // empty kiosk background would cover it. Render the launcher first, then
+            // hide this window completely for the active-session lifetime.
             Topmost = false;
             GameLauncherWindow.Instance?.ShowLauncherSurface();
             PlayerDockWindow.Instance?.ShowDock();
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (Vm.IsActive && GameLauncherWindow.Instance?.IsVisible == true)
+                    Hide();
+            }, DispatcherPriority.Render);
         }
         else
         {
