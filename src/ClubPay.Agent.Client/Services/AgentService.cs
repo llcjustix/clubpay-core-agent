@@ -10,14 +10,16 @@ namespace ClubPay.Agent.Client.Services;
 
 public sealed class AgentService : IAgentService
 {
-    public string PcId { get; }
+    public string PcId { get; private set; }
     public string ExternalPcId { get; }
     public ZoneType Zone { get; }
-    public string ClubName { get; }
+    public string ZoneName { get; private set; }
+    public string ClubName { get; private set; }
     public string WifiSsid { get; }
     public string WifiPassword { get; }
     public string? StaticPaymentQrUrl { get; private set; }
     public event Action? StaticPaymentQrUrlChanged;
+    public event Action? BootstrapChanged;
 
     private readonly string _bootstrapUrl;
     private readonly string _agentToken;
@@ -31,6 +33,7 @@ public sealed class AgentService : IAgentService
         WifiSsid = config["Agent:WifiSsid"] ?? "ClubPay-Guest";
         WifiPassword = config["Agent:WifiPassword"] ?? string.Empty;
         Zone = Enum.TryParse<ZoneType>(config["Agent:Zone"], out var z) ? z : ZoneType.Standard;
+        ZoneName = config["Agent:ZoneName"] ?? Zone.ToString();
 
         var externalPcId = config["Controller:ExternalPcId"];
         if (string.IsNullOrWhiteSpace(externalPcId))
@@ -73,11 +76,14 @@ public sealed class AgentService : IAgentService
             if (!Uri.TryCreate(qrUrl, UriKind.Absolute, out _))
                 throw new InvalidOperationException("Core bootstrap returned an invalid qr_url");
 
+            var bootstrapChanged = ApplyBootstrapIdentity(payload.RootElement);
             if (!string.Equals(StaticPaymentQrUrl, qrUrl, StringComparison.Ordinal))
             {
                 StaticPaymentQrUrl = qrUrl;
                 StaticPaymentQrUrlChanged?.Invoke();
             }
+            if (bootstrapChanged)
+                BootstrapChanged?.Invoke();
 
             _logger.LogInformation("Static payment QR loaded from Core bootstrap for {ExternalPcId}", ExternalPcId);
         }
@@ -87,6 +93,38 @@ public sealed class AgentService : IAgentService
             _logger.LogWarning(ex, "Could not load static payment QR from Core bootstrap for {ExternalPcId}; retaining fallback if configured", ExternalPcId);
         }
     }
+
+    private bool ApplyBootstrapIdentity(JsonElement payload)
+    {
+        var changed = false;
+        var clubName = ReadNestedString(payload, "club", "name");
+        if (!string.IsNullOrWhiteSpace(clubName) && !string.Equals(ClubName, clubName, StringComparison.Ordinal))
+        {
+            ClubName = clubName;
+            changed = true;
+        }
+        var pcLabel = ReadNestedString(payload, "pc", "label");
+        if (!string.IsNullOrWhiteSpace(pcLabel) && !string.Equals(PcId, pcLabel, StringComparison.Ordinal))
+        {
+            PcId = pcLabel;
+            changed = true;
+        }
+        var zoneName = ReadNestedString(payload, "zone", "name");
+        if (!string.IsNullOrWhiteSpace(zoneName) && !string.Equals(ZoneName, zoneName, StringComparison.Ordinal))
+        {
+            ZoneName = zoneName;
+            changed = true;
+        }
+        return changed;
+    }
+
+    private static string? ReadNestedString(JsonElement payload, string objectName, string propertyName)
+        => payload.TryGetProperty(objectName, out var container)
+            && container.ValueKind == JsonValueKind.Object
+            && container.TryGetProperty(propertyName, out var value)
+            && value.ValueKind == JsonValueKind.String
+            ? value.GetString()?.Trim()
+            : null;
 
     private Uri BuildBootstrapUri()
     {

@@ -34,7 +34,7 @@
           <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
             <Path Data="M13,0 L26,7.25 L26,21.75 L13,29 L0,21.75 L0,7.25 Z"
                   Fill="{StaticResource LogoGradient}" Width="26" Height="29" Margin="0,0,11,0"/>
-            <TextBlock Text="NEXUS ARENA" Foreground="White"
+            <TextBlock Text="{Binding ClubName}" Foreground="White"
                        FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Bold"/>
           </StackPanel>
           <ComboBox Grid.Column="1" Style="{StaticResource LanguagePicker}" Margin="0,0,10,0"
@@ -109,18 +109,9 @@
           </Grid.Background>
           <Border CornerRadius="14" Background="#07FFFFFF" Padding="18,14">
             <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-              </Grid.ColumnDefinitions>
-              <StackPanel Grid.Column="0">
+              <StackPanel>
                 <TextBlock Text="{Binding ZoneLabel}" Foreground="White"
                            FontFamily="{StaticResource FontChakra}" FontSize="18" FontWeight="SemiBold"/>
-              </StackPanel>
-              <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                <TextBlock Text="{Binding TariffLabel}" Foreground="{StaticResource CyanBrush}"
-                           FontFamily="{StaticResource FontChakra}" FontSize="18" FontWeight="SemiBold"
-                           HorizontalAlignment="Right"/>
               </StackPanel>
             </Grid>
           </Border>

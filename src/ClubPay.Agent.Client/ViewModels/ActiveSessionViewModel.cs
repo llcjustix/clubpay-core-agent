@@ -2,6 +2,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ClubPay.Agent.Core.Models;
+using ClubPay.Agent.Core.Services;
 using ClubPay.Agent.Client.Services;
 
 namespace ClubPay.Agent.Client.ViewModels;
@@ -14,21 +15,23 @@ namespace ClubPay.Agent.Client.ViewModels;
 public partial class ActiveSessionViewModel : ObservableObject
 {
     private readonly QrCodeService _qr;
+    private readonly IAgentService _agent;
     private readonly DispatcherTimer _timer;
     private Session? _session;
     private string? _extendUrl;
 
     [ObservableProperty] private string _remainingTimeText = "01:24:35";
     [ObservableProperty] private int _remainingSeconds = 5075;
-    [ObservableProperty] private string _zoneLabel = "Standard Zone";
-    [ObservableProperty] private string _zoneLabelUz = "Standart Zona";
-    [ObservableProperty] private string _tariffLabel = "2 soat";
-    [ObservableProperty] private string _playedHoursText = "2 soat";
+    [ObservableProperty] private string _clubName = "ClubPay";
+    [ObservableProperty] private string _zoneLabel = "";
     [ObservableProperty] private BitmapImage? _extendQrImage;
 
-    public ActiveSessionViewModel(QrCodeService qr)
+    public ActiveSessionViewModel(QrCodeService qr, IAgentService agent)
     {
         _qr = qr;
+        _agent = agent;
+        RefreshIdentity();
+        _agent.BootstrapChanged += RefreshIdentity;
         _timer = new DispatcherTimer(DispatcherPriority.Normal)
         { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => RefreshTime(DateTime.UtcNow);
@@ -45,9 +48,7 @@ public partial class ActiveSessionViewModel : ObservableObject
 
         if (isNewSession)
         {
-            ZoneLabel = ZoneLabelFor(session.Tariff.Zone, false);
-            ZoneLabelUz = ZoneLabelFor(session.Tariff.Zone, true);
-            TariffLabel = session.Tariff.DurationLabel;
+            ZoneLabel = string.IsNullOrWhiteSpace(session.Zone) ? _agent.ZoneName : session.Zone;
 
         }
 
@@ -81,9 +82,19 @@ public partial class ActiveSessionViewModel : ObservableObject
         RemainingSeconds = rem;
         RemainingTimeText = FormatTime(rem);
 
-        int played = _session.ElapsedSeconds(now) / 3600;
-        PlayedHoursText = played > 0 ? $"{played} soat" : "yangi sessiya";
+    }
 
+    private void RefreshIdentity()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(RefreshIdentity);
+            return;
+        }
+        ClubName = _agent.ClubName;
+        if (_session is null || string.IsNullOrWhiteSpace(_session.Zone))
+            ZoneLabel = _agent.ZoneName;
     }
 
     private static string FormatTime(int totalSeconds)
@@ -94,13 +105,4 @@ public partial class ActiveSessionViewModel : ObservableObject
         return h > 0 ? $"{h:D2}:{m:D2}:{s:D2}" : $"{m:D2}:{s:D2}";
     }
 
-    private static string ZoneLabelFor(ZoneType zone, bool uz) => (zone, uz) switch
-    {
-        (ZoneType.Pro, false) => "Pro Zone",
-        (ZoneType.Pro, true) => "Pro Zona",
-        (ZoneType.Vip, false) => "VIP Zone",
-        (ZoneType.Vip, true) => "VIP Zona",
-        (_, false) => "Standard Zone",
-        _ => "Standart Zona",
-    };
 }

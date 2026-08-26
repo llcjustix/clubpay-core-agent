@@ -1,7 +1,6 @@
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Core.Services;
 using ClubPay.Agent.Client.Services;
 
@@ -31,9 +30,7 @@ public partial class LockScreenViewModel : ObservableObject
         _agent = agent;
         _qr = qr;
 
-        PcId = agent.PcId;
-        ClubName = agent.ClubName;
-        ZoneLabel = ZoneLabelFor(agent.Zone);
+        UpdateIdentity();
 
         _clock = new DispatcherTimer(DispatcherPriority.Background)
         { Interval = TimeSpan.FromSeconds(1) };
@@ -41,6 +38,7 @@ public partial class LockScreenViewModel : ObservableObject
         _clock.Start();
 
         _agent.StaticPaymentQrUrlChanged += RefreshPaymentQr;
+        _agent.BootstrapChanged += RefreshIdentity;
         GenerateQrCodes();
     }
 
@@ -61,13 +59,23 @@ public partial class LockScreenViewModel : ObservableObject
             _ = dispatcher.InvokeAsync(GenerateQrCodes);
     }
 
+    private void RefreshIdentity()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            UpdateIdentity();
+        else
+            _ = dispatcher.InvokeAsync(UpdateIdentity);
+    }
+
+    private void UpdateIdentity()
+    {
+        PcId = _agent.PcId;
+        ClubName = _agent.ClubName;
+        ZoneLabel = _agent.ZoneName;
+    }
+
     /// <summary>Called by MainViewModel whenever the coordinator reports a fresh transition to Locked.</summary>
     public void Reset() => GenerateQrCodes();
 
-    private static string ZoneLabelFor(ZoneType z) => z switch
-    {
-        ZoneType.Pro => "Pro Zone · Pro Zona",
-        ZoneType.Vip => "VIP Zone · VIP Zona",
-        _ => "Standard Zone · Standart Zona"
-    };
 }

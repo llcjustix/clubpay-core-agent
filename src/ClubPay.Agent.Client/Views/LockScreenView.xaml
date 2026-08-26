@@ -85,25 +85,23 @@
     <!-- CENTER CONTENT -->
     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,40,0,0">
 
-      <!-- PC identity: the zone belongs to the PC, so keep both in one row. -->
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-        <TextBlock Text="{Binding PcId}" VerticalAlignment="Center"
-                   FontFamily="{StaticResource FontChakra}" FontSize="100" FontWeight="Bold">
-          <TextBlock.Foreground>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-              <GradientStop Color="White"     Offset="0"/>
-              <GradientStop Color="#FF9FB4C9" Offset="1"/>
-            </LinearGradientBrush>
-          </TextBlock.Foreground>
-        </TextBlock>
+      <Border CornerRadius="8" BorderThickness="1" Padding="20,8"
+              Background="#14FFFFFF" BorderBrush="#5900D4FF"
+              HorizontalAlignment="Center" Margin="0,0,0,14">
+        <TextBlock Text="{Binding ZoneLabel}" Foreground="#FFCFE9F5"
+                   FontFamily="{StaticResource FontChakra}" FontSize="22" FontWeight="Medium"/>
+      </Border>
 
-        <Border CornerRadius="8" BorderThickness="1" Padding="20,8"
-                Background="#14FFFFFF" BorderBrush="#5900D4FF"
-                VerticalAlignment="Center" Margin="22,0,0,0">
-          <TextBlock Text="{Binding ZoneLabel}" Foreground="#FFCFE9F5"
-                     FontFamily="{StaticResource FontChakra}" FontSize="22" FontWeight="Medium"/>
-        </Border>
-      </StackPanel>
+      <!-- PC identity -->
+      <TextBlock Text="{Binding PcId}" HorizontalAlignment="Center"
+                 FontFamily="{StaticResource FontChakra}" FontSize="100" FontWeight="Bold">
+        <TextBlock.Foreground>
+          <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="White"     Offset="0"/>
+            <GradientStop Color="#FF9FB4C9" Offset="1"/>
+          </LinearGradientBrush>
+        </TextBlock.Foreground>
+      </TextBlock>
 
       <!-- QR pay frame with glow pulse -->
       <Border x:Name="QrPayFrame" CornerRadius="20" Background="White" Padding="22"
