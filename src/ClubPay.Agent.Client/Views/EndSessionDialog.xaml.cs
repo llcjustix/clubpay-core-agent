@@ -5,8 +5,10 @@ namespace ClubPay.Agent.Client.Views;
 
 public partial class EndSessionDialog : Window
 {
-    public string RecipientPhone => PhoneBox.Text.Trim();
-    public bool RecipientConsent => ConsentCheck.IsChecked == true;
+    // A signed-in player is resolved by Core from the session itself. Guest sessions still use
+    // the server's voucher fallback, without forcing a phone prompt at the end of a game.
+    public string RecipientPhone => string.Empty;
+    public bool RecipientConsent => false;
 
     public EndSessionDialog() => InitializeComponent();
 
@@ -14,18 +16,6 @@ public partial class EndSessionDialog : Window
 
     private void OnConfirm(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(RecipientPhone) || RecipientPhone == "+998")
-        {
-            MessageBox.Show(L("PhoneRequired"), "ClubPay",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-        if (!RecipientConsent)
-        {
-            MessageBox.Show(L("ConsentRequired"), "ClubPay",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
         DialogResult = true;
     }
 

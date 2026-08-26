@@ -10,14 +10,6 @@
                  FontSize="24" FontWeight="Bold"/>
       <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[EndSessionVoucherNotice], Mode=OneWay}"
                  Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" Margin="0,8,0,18"/>
-      <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[PhoneNumber], Mode=OneWay}" FontFamily="{StaticResource FontMono}" FontSize="12"
-                 Foreground="{StaticResource TextMuted}"/>
-      <TextBox x:Name="PhoneBox" Margin="0,6,0,12" Padding="10,7"
-               FontSize="16" Text="+998 "/>
-      <CheckBox x:Name="ConsentCheck" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,20">
-        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ConsentVoucherTelegram], Mode=OneWay}"
-                   TextWrapping="Wrap"/>
-      </CheckBox>
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
         <Button Content="{Binding Source={StaticResource Loc}, Path=[Cancel], Mode=OneWay}" Padding="16,8" Margin="0,0,10,0" Click="OnCancel"/>
         <Button Content="{Binding Source={StaticResource Loc}, Path=[EndAndSend], Mode=OneWay}" Padding="16,8" Click="OnConfirm"/>

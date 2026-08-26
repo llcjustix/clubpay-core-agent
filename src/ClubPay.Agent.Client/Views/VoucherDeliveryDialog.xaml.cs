@@ -8,6 +8,24 @@ public partial class VoucherDeliveryDialog : Window
     public VoucherDeliveryDialog(ClientSessionEndResult result, QrCodeService qr)
     {
         InitializeComponent();
+        if (result.ProfileBalanceAddedSeconds > 0)
+        {
+            TitleText.Text = L("ProfileTimeSaved");
+            VoucherCodeText.Text = string.Empty;
+            MessageText.Text = string.Format(L("ProfileTimeSavedDescription"), FormatDuration(result.ProfileBalanceAddedSeconds));
+            QrBorder.Visibility = Visibility.Collapsed;
+            TelegramBotText.Visibility = Visibility.Collapsed;
+            return;
+        }
+        if (result.VoucherSeconds <= 0 && string.IsNullOrWhiteSpace(result.VoucherCode))
+        {
+            TitleText.Text = L("SessionCompleted");
+            VoucherCodeText.Text = string.Empty;
+            MessageText.Text = L("NoTimeRemaining");
+            QrBorder.Visibility = Visibility.Collapsed;
+            TelegramBotText.Visibility = Visibility.Collapsed;
+            return;
+        }
         VoucherCodeText.Text = string.IsNullOrWhiteSpace(result.VoucherCode) ? string.Empty : $"{L("Voucher")}: {result.VoucherCode}";
 
         if (result.DeliveryStatus == "sent")
@@ -50,6 +68,8 @@ public partial class VoucherDeliveryDialog : Window
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
+
+    private static string FormatDuration(int seconds) => TimeSpan.FromSeconds(seconds).ToString(@"hh\:mm\:ss");
 
     private static string L(string key)
         => Application.Current?.TryFindResource("Loc") is LocalizationService localizer

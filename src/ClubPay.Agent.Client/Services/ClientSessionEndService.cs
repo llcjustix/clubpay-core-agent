@@ -66,6 +66,9 @@ public sealed class ClientSessionEndService : IClientSessionEndService
         return new ClientSessionEndResult(
             VoucherCode: voucher.ValueKind == JsonValueKind.Object ? ReadString(voucher, "code") : null,
             VoucherSeconds: voucher.ValueKind == JsonValueKind.Object ? ReadInt(voucher, "seconds_left") : 0,
+            ProfileBalanceAddedSeconds: root.TryGetProperty("player_balance", out var playerBalance) && playerBalance.ValueKind == JsonValueKind.Object
+                ? ReadInt(playerBalance, "seconds_added")
+                : 0,
             DeliveryStatus: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "status") ?? "not_requested" : "not_requested",
             TelegramLink: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "telegram_link") : null,
             TelegramBotUsername: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "telegram_bot_username") : null);
