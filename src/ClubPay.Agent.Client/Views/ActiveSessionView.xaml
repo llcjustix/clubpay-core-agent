@@ -55,7 +55,7 @@
                 BorderThickness="1"
                 Cursor="Hand"
                 Click="OnMenuClicked"
-                ToolTip="{Binding Source={StaticResource Loc}, Path=[Menu]}">
+                ToolTip="{Binding Source={StaticResource Loc}, Path=[Menu], Mode=OneWay}">
             <TextBlock Text="⋮"
                        FontSize="20"
                        Foreground="{StaticResource TextSecondary}"
@@ -72,7 +72,7 @@
               <DropShadowEffect Color="#FF00FF88" BlurRadius="10" ShadowDepth="0"/>
             </Ellipse.Effect>
           </Ellipse>
-          <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ActiveSession]}" Foreground="{StaticResource GreenBrush}"
+          <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ActiveSession], Mode=OneWay}" Foreground="{StaticResource GreenBrush}"
                      FontFamily="{StaticResource FontMono}" FontSize="16"/>
         </StackPanel>
 
@@ -99,7 +99,7 @@
             </EventTrigger>
           </TextBlock.Triggers>
         </TextBlock>
-        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[Remaining]}"
+        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[Remaining], Mode=OneWay}"
                    Foreground="{StaticResource TextMuted}"
                    FontFamily="{StaticResource FontMono}" FontSize="13"/>
 
@@ -159,9 +159,9 @@
                    RenderOptions.BitmapScalingMode="NearestNeighbor"/>
           </Border>
           <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
-            <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToExtendSession]}" Foreground="{StaticResource CyanBrush}"
+            <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToExtendSession], Mode=OneWay}" Foreground="{StaticResource CyanBrush}"
                        FontFamily="{StaticResource FontChakra}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap"/>
-            <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToExtendHelp]}" Foreground="{StaticResource TextMuted}"
+            <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToExtendHelp], Mode=OneWay}" Foreground="{StaticResource TextMuted}"
                        FontFamily="{StaticResource FontMono}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"/>
           </StackPanel>
         </Grid>

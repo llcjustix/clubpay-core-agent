@@ -79,7 +79,7 @@
                        Foreground="{StaticResource GreenBrush}">
               <Run Text="{Binding RunningApp.Name, Mode=OneWay}"/>
               <Run Text=" "/>
-              <Run Text="{Binding Source={StaticResource Loc}, Path=[Running]}" Foreground="{StaticResource TextMuted}"/>
+              <Run Text="{Binding Source={StaticResource Loc}, Path=[Running], Mode=OneWay}" Foreground="{StaticResource TextMuted}"/>
             </TextBlock>
           </StackPanel>
         </Grid>
@@ -102,7 +102,7 @@
 
           <!-- Launcher button deliberately returns to the Agent UI without closing apps. -->
           <Button Grid.Column="0" Width="42" Height="42" Cursor="Hand"
-                  ToolTip="{Binding Source={StaticResource Loc}, Path=[OpenLauncher]}" Command="{Binding ShowLauncherCommand}"
+                  ToolTip="{Binding Source={StaticResource Loc}, Path=[OpenLauncher], Mode=OneWay}" Command="{Binding ShowLauncherCommand}"
                   Background="#1C00D4FF" BorderBrush="#4000D4FF" BorderThickness="1">
             <Button.Template>
               <ControlTemplate TargetType="Button">
@@ -132,7 +132,7 @@
                         MinWidth="132"
                         MaxWidth="240"
                         Cursor="Hand"
-                        ToolTip="{Binding Source={StaticResource Loc}, Path=[OpenApplication]}"
+                        ToolTip="{Binding Source={StaticResource Loc}, Path=[OpenApplication], Mode=OneWay}"
                         PreviewMouseRightButtonUp="OnDockItemRightClick"
                         Command="{Binding DataContext.FocusRunningAppCommand,
                                           RelativeSource={RelativeSource AncestorType=Window}}"
@@ -174,7 +174,7 @@
             </ItemsControl>
           </ScrollViewer>
 
-          <TextBlock Grid.Column="3" Text="{Binding Source={StaticResource Loc}, Path=[OpenApplications]}" VerticalAlignment="Center"
+          <TextBlock Grid.Column="3" Text="{Binding Source={StaticResource Loc}, Path=[OpenApplications], Mode=OneWay}" VerticalAlignment="Center"
                      FontFamily="{StaticResource FontMono}" FontSize="11"
                      Foreground="{StaticResource TextMuted}" Margin="12,0,0,0"
                      Visibility="{Binding IsAppRunning, Converter={StaticResource BoolVis}}"/>
@@ -188,7 +188,7 @@
         <StackPanel>
 
           <!-- Section label -->
-          <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[GamesAndApps]}"
+          <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[GamesAndApps], Mode=OneWay}"
                      FontFamily="{StaticResource FontMono}" FontSize="11"
                      Foreground="{StaticResource TextMuted}" Margin="0,0,0,24"/>
 

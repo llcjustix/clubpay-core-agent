@@ -66,7 +66,7 @@
               </EventTrigger>
             </Ellipse.Triggers>
           </Ellipse>
-          <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[SessionFrozen]}"
+          <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[SessionFrozen], Mode=OneWay}"
                      Foreground="{StaticResource RedSoftBrush}"
                      FontFamily="{StaticResource FontChakra}" FontSize="22"
                      FontWeight="SemiBold"/>
@@ -75,7 +75,7 @@
 
       <!-- GRACE TIMER + BAR -->
       <StackPanel VerticalAlignment="Top" Margin="0,118,0,0" HorizontalAlignment="Center">
-        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[GracePeriod]}"
+        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[GracePeriod], Mode=OneWay}"
                    HorizontalAlignment="Center" Foreground="{StaticResource TextMuted}"
                    FontFamily="{StaticResource FontMono}" FontSize="18"/>
 
@@ -141,10 +141,10 @@
           <Image Source="{Binding ExtendQrImage}" Width="320" Height="320"
                  RenderOptions.BitmapScalingMode="NearestNeighbor"/>
         </Border>
-        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToContinuePlaying]}" HorizontalAlignment="Center"
+        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToContinuePlaying], Mode=OneWay}" HorizontalAlignment="Center"
                    Foreground="White" FontFamily="{StaticResource FontChakra}"
                    FontSize="30" FontWeight="SemiBold" Margin="0,20,0,0"/>
-        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToContinuePlayingHelp]}" HorizontalAlignment="Center"
+        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToContinuePlayingHelp], Mode=OneWay}" HorizontalAlignment="Center"
                    Foreground="{StaticResource GreenBrush}"
                    FontFamily="{StaticResource FontMono}" FontSize="19" Margin="0,4,0,0"/>
       </StackPanel>

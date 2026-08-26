@@ -1,26 +1,26 @@
 <Window x:Class="ClubPay.Agent.Client.Views.EndSessionDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="{Binding Source={StaticResource Loc}, Path=[EndSession]}" SizeToContent="WidthAndHeight" MinWidth="430"
+        Title="{Binding Source={StaticResource Loc}, Path=[EndSession], Mode=OneWay}" SizeToContent="WidthAndHeight" MinWidth="430"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" Topmost="True"
         Background="{StaticResource BgDark}" Foreground="White">
   <Border Padding="28" BorderBrush="#4700D4FF" BorderThickness="1" CornerRadius="14">
     <StackPanel>
-      <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[EndSession]}" FontFamily="{StaticResource FontChakra}"
+      <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[EndSession], Mode=OneWay}" FontFamily="{StaticResource FontChakra}"
                  FontSize="24" FontWeight="Bold"/>
-      <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[EndSessionVoucherNotice]}"
+      <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[EndSessionVoucherNotice], Mode=OneWay}"
                  Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" Margin="0,8,0,18"/>
-      <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[PhoneNumber]}" FontFamily="{StaticResource FontMono}" FontSize="12"
+      <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[PhoneNumber], Mode=OneWay}" FontFamily="{StaticResource FontMono}" FontSize="12"
                  Foreground="{StaticResource TextMuted}"/>
       <TextBox x:Name="PhoneBox" Margin="0,6,0,12" Padding="10,7"
                FontSize="16" Text="+998 "/>
       <CheckBox x:Name="ConsentCheck" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,20">
-        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ConsentVoucherTelegram]}"
+        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ConsentVoucherTelegram], Mode=OneWay}"
                    TextWrapping="Wrap"/>
       </CheckBox>
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-        <Button Content="{Binding Source={StaticResource Loc}, Path=[Cancel]}" Padding="16,8" Margin="0,0,10,0" Click="OnCancel"/>
-        <Button Content="{Binding Source={StaticResource Loc}, Path=[EndAndSend]}" Padding="16,8" Click="OnConfirm"/>
+        <Button Content="{Binding Source={StaticResource Loc}, Path=[Cancel], Mode=OneWay}" Padding="16,8" Margin="0,0,10,0" Click="OnCancel"/>
+        <Button Content="{Binding Source={StaticResource Loc}, Path=[EndAndSend], Mode=OneWay}" Padding="16,8" Click="OnConfirm"/>
       </StackPanel>
     </StackPanel>
   </Border>
