@@ -115,14 +115,14 @@
 
   <!-- Zone badge style -->
   <Style x:Key="ZoneBadge" TargetType="Border">
-    <Setter Property="CornerRadius"   Value="999"/>
+    <Setter Property="CornerRadius"   Value="8"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="Padding"         Value="18,6"/>
   </Style>
 
   <!-- Status pill style -->
   <Style x:Key="StatusPill" TargetType="Border">
-    <Setter Property="CornerRadius"   Value="999"/>
+    <Setter Property="CornerRadius"   Value="8"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="Padding"         Value="14,8"/>
   </Style>

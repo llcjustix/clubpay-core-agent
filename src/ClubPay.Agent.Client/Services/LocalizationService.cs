@@ -77,7 +77,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
     {
         ["GamingClub"] = "ИГРОВОЙ КЛУБ", ["Locked"] = "ЗАБЛОКИРОВАН",
         ["ScanToPay"] = "Сканируйте для оплаты", ["NoInternet"] = "Нет интернета? Сначала подключитесь к Wi‑Fi",
-        ["WifiHelp"] = "Отсканируйте QR-код, чтобы подключиться к Wi‑Fi", ["WaitingController"] = "Ожидание команды контроллера",
+        ["WifiHelp"] = "Отсканируйте QR-код, чтобы подключиться к Wi‑Fi",
         ["Menu"] = "Меню", ["EndSession"] = "Завершить сеанс", ["ActiveSession"] = "АКТИВНЫЙ СЕАНС", ["Remaining"] = "осталось",
         ["ScanToExtendSession"] = "Сканируйте, чтобы продлить сеанс", ["ScanToExtendHelp"] = "Оплатите или примените ваучер",
         ["SessionFrozen"] = "СЕАНС ПРИОСТАНОВЛЕН", ["GracePeriod"] = "ЛЬГОТНОЕ ВРЕМЯ",
@@ -108,7 +108,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
     {
         ["GamingClub"] = "O'YIN KLUBI", ["Locked"] = "BLOKLANGAN",
         ["ScanToPay"] = "To'lov uchun skanerlang", ["NoInternet"] = "Internet yo'qmi? Avval Wi‑Fi'ga ulang",
-        ["WifiHelp"] = "Wi‑Fi'ga ulanish uchun QR-kodni skanerlang", ["WaitingController"] = "Kontroller buyrug'i kutilmoqda",
+        ["WifiHelp"] = "Wi‑Fi'ga ulanish uchun QR-kodni skanerlang",
         ["Menu"] = "Menyu", ["EndSession"] = "Seansni yakunlash", ["ActiveSession"] = "FAOL SEANS", ["Remaining"] = "qolgan vaqt",
         ["ScanToExtendSession"] = "Seansni uzaytirish uchun skanerlang", ["ScanToExtendHelp"] = "To'lov qiling yoki vaucher qo'llang",
         ["SessionFrozen"] = "SEANS MUZLATILDI", ["GracePeriod"] = "IMTIYOZ VAQTI",
