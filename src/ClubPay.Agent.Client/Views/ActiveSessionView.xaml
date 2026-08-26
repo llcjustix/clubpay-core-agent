@@ -45,17 +45,23 @@
             <ComboBoxItem Content="UZ" Tag="uz"/>
           </ComboBox>
           <!-- Player menu. Windows controls stay hidden; player actions live here instead. -->
-          <Button Grid.Column="2" Width="32" Height="32" Padding="0"
-                  Background="#0FFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
-                  Cursor="Hand" Click="OnMenuClicked" ToolTip="{Binding Source={StaticResource Loc}, Path=[Menu]}">
-            <TextBlock Text="⋮" FontSize="20" Foreground="{StaticResource TextSecondary}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            <Button.ContextMenu>
-              <ContextMenu>
-                <MenuItem Header="{Binding Source={StaticResource Loc}, Path=[EndSession]}" Click="OnEndSessionClicked"/>
-              </ContextMenu>
-            </Button.ContextMenu>
-          </Button>
+        <Button x:Name="SessionMenuButton"
+                Grid.Column="2"
+                Width="32"
+                Height="32"
+                Padding="0"
+                Background="#0FFFFFFF"
+                BorderBrush="#1AFFFFFF"
+                BorderThickness="1"
+                Cursor="Hand"
+                Click="OnMenuClicked"
+                ToolTip="{Binding Source={StaticResource Loc}, Path=[Menu]}">
+            <TextBlock Text="⋮"
+                       FontSize="20"
+                       Foreground="{StaticResource TextSecondary}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" />
+        </Button>
         </Grid>
 
         <!-- Status indicator -->
