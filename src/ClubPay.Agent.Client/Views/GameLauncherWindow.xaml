@@ -39,7 +39,6 @@
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
 
           <!-- Logo + club + pc -->
@@ -61,15 +60,8 @@
                        FontSize="15" Foreground="{StaticResource CyanBrush}" VerticalAlignment="Center"/>
           </StackPanel>
 
-          <ComboBox Grid.Column="1" Style="{StaticResource LanguagePicker}" Margin="0,0,18,0"
-                    SelectedValue="{Binding Source={StaticResource Loc}, Path=LanguageCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                    SelectedValuePath="Tag" VerticalContentAlignment="Center">
-            <ComboBoxItem Tag="ru" Content="RU"/>
-            <ComboBoxItem Tag="uz" Content="UZ"/>
-          </ComboBox>
-
           <!-- Running app indicator -->
-          <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                       Visibility="{Binding IsAppRunning, Converter={StaticResource BoolVis}}">
             <Ellipse Width="8" Height="8" Fill="{StaticResource GreenBrush}" Margin="0,0,8,0">
               <Ellipse.Effect>
@@ -168,7 +160,7 @@
         <!-- The session card belongs to the same fullscreen launcher window.
              A separate topmost window is unreliable in RDP/VM z-ordering and
              was the reason the timer disappeared on the test machine. -->
-        <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,28,24,0">
+        <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,14,24,0">
           <views:ActiveSessionView x:Name="SessionCard"/>
         </Border>
       </Grid>

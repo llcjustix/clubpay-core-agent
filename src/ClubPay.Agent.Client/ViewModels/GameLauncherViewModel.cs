@@ -23,7 +23,9 @@ public partial class GameLauncherViewModel : ObservableObject
     [ObservableProperty] private string?      _launchError;
 
     public event Action?             ReturnRequested;   // show launcher window
-    public event Action<LauncherApp> AppLaunched = delegate { }; // external game takes foreground
+    // Raised only after a real top-level player window was found and restored.
+    // Starting Steam.exe alone is not enough: on a VM its UI can appear seconds later.
+    public event Action<LauncherApp> AppLaunched = delegate { };
 
     private readonly Dictionary<LauncherApp, Process?> _runningProcesses = [];
     private readonly ILogger<GameLauncherViewModel> _logger;
@@ -141,7 +143,6 @@ public partial class GameLauncherViewModel : ObservableObject
             return;
         }
 
-        AppLaunched(app);  // retain Agent as fullscreen background, then let game take foreground
         _ = PromoteAppWhenReadyAsync(app);
 
         // Both a Steam game URI and Steam.exe may hand control to an already-running Steam client
@@ -176,10 +177,20 @@ public partial class GameLauncherViewModel : ObservableObject
     {
         // Steam and games commonly create their main window a moment after their launcher
         // process starts. Retry before deciding the dock item is stale.
-        for (var attempt = 0; attempt < 8; attempt++)
+        var target = app ?? RunningApp ?? RunningApps.LastOrDefault();
+        if (target is null || !RunningApps.Contains(target))
+            return false;
+
+        // Steam is noticeably slower on the pilot VM, especially on its first run.
+        // Keep the launcher visible during this wait rather than exposing a blank
+        // kiosk background just because Steam has started its process tree.
+        for (var attempt = 0; attempt < 80; attempt++)
         {
-            if (TryFocusRunningApp(app))
+            if (TryFocusRunningApp(target))
+            {
+                AppLaunched(target);
                 return true;
+            }
 
             await Task.Delay(250);
         }
@@ -281,9 +292,9 @@ public partial class GameLauncherViewModel : ObservableObject
 
     private async Task PromoteAppWhenReadyAsync(LauncherApp app)
     {
-        // The Agent launcher is intentionally topmost to hide Explorer and any stray
-        // administrative windows. Promote only the player app above that layer once its
-        // native window exists; the timer therefore never covers Steam or a game.
+        // Do not hide the launcher until the player application actually owns a
+        // visible window. This is important for Steam, whose bootstrap process is
+        // often alive well before the desktop client is ready.
         await FocusRunningAppAsync(app);
     }
 
