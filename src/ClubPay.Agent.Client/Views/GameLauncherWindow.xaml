@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:cv="clr-namespace:ClubPay.Agent.Client.Converters"
+        xmlns:views="clr-namespace:ClubPay.Agent.Client.Views"
         WindowStyle="None" WindowState="Normal" ResizeMode="NoResize"
         ShowInTaskbar="False" Topmost="True"
         Loaded="OnLoaded"
@@ -86,10 +87,12 @@
       </Border>
 
       <!-- ── CONTENT ────────────────────────────────────────────── -->
-      <ScrollViewer VerticalScrollBarVisibility="Auto"
-                    HorizontalScrollBarVisibility="Disabled"
-                    Padding="40,28">
-        <StackPanel>
+      <Grid>
+        <ScrollViewer Margin="0,0,412,0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="40,28">
+          <StackPanel>
 
           <!-- Section label -->
           <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[GamesAndApps], Mode=OneWay}"
@@ -159,8 +162,16 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
 
-        </StackPanel>
-      </ScrollViewer>
+          </StackPanel>
+        </ScrollViewer>
+
+        <!-- The session card belongs to the same fullscreen launcher window.
+             A separate topmost window is unreliable in RDP/VM z-ordering and
+             was the reason the timer disappeared on the test machine. -->
+        <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,28,24,0">
+          <views:ActiveSessionView x:Name="SessionCard"/>
+        </Border>
+      </Grid>
     </DockPanel>
   </Grid>
 </Window>

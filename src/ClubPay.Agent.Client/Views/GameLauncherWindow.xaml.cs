@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Interop;
+using ClubPay.Agent.Client.Services;
 using ClubPay.Agent.Client.ViewModels;
 
 namespace ClubPay.Agent.Client.Views;
@@ -9,44 +10,85 @@ public partial class GameLauncherWindow : Window
     public static GameLauncherWindow? Instance { get; private set; }
     private const int WmMouseActivate = 0x0021;
     private const int MaNoActivate = 3;
+    private readonly IClientSessionEndService _sessionEnd;
+    private readonly QrCodeService _qr;
+    private readonly LocalizationService _localizer;
     private bool _externalAppMode;
 
-    internal GameLauncherViewModel Vm => (GameLauncherViewModel)DataContext;
-
-    public GameLauncherWindow(GameLauncherViewModel vm)
+    public GameLauncherWindow(
+        GameLauncherViewModel vm,
+        MainViewModel main,
+        IClientSessionEndService sessionEnd,
+        QrCodeService qr,
+        LocalizationService localizer)
     {
         Instance    = this;
         DataContext = vm;
+        _sessionEnd = sessionEnd;
+        _qr = qr;
+        _localizer = localizer;
         InitializeComponent();
+        SessionCard.DataContext = main.ActiveSession;
+        SessionCard.EndSessionRequested += RequestSessionEndAsync;
 
         // Keep Agent as the protected fullscreen background, but make that background unable
         // to steal activation while Steam/a game is in front. A click outside a windowed game
         // must therefore stay with the external application instead of hiding it behind Agent.
         vm.AppLaunched += _ => Dispatcher.Invoke(() =>
         {
-            if (!IsVisible)
-                Show();
             EnterExternalAppMode();
-            // Steam/the game owns the player surface now. The session card is shown
-            // again when the player explicitly returns to the launcher.
-            SessionOverlayWindow.Instance?.Hide();
+            // Do not leave an opaque launcher below Steam. It is explicitly restored
+            // by the dock's return action, rather than relying on window z-order.
+            Hide();
             PlayerDockWindow.Instance?.ShowDock();
         });
 
         // Game exited or user clicked "return" → show launcher again
         vm.ReturnRequested += () => Dispatcher.Invoke(() =>
         {
-            EnterLauncherMode();
-            Show();
-            Activate();
-            SessionOverlayWindow.Instance?.Show();
-            SessionOverlayWindow.Instance?.Activate();
+            ShowLauncherSurface();
             PlayerDockWindow.Instance?.ShowDock();
         });
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
         => FullScreenWindow.CoverPrimaryScreen(this);
+
+    internal void ShowLauncherSurface()
+    {
+        EnterLauncherMode();
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+
+        if (!IsVisible)
+            Show();
+
+        FullScreenWindow.CoverPrimaryScreen(this);
+        // Toggle the flag so Windows reapplies the topmost z-order even after the
+        // launcher was hidden while a Steam window had the foreground.
+        Topmost = false;
+        Topmost = true;
+        Activate();
+        Focus();
+    }
+
+    private async Task RequestSessionEndAsync()
+    {
+        var dialog = new EndSessionDialog { Owner = this };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            var result = await _sessionEnd.EndCurrentSessionAsync(dialog.RecipientPhone, dialog.RecipientConsent);
+            new VoucherDeliveryDialog(result, _qr).ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(_localizer.Format("EndSessionFailed", ex.Message), "ClubPay",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
 
     protected override void OnSourceInitialized(EventArgs e)
     {

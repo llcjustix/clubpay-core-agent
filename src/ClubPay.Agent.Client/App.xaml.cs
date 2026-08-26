@@ -71,7 +71,6 @@ public partial class App : Application
             sc.AddSingleton<GameLauncherViewModel>();
 
             sc.AddSingleton<KioskWindow>();
-            sc.AddSingleton<SessionOverlayWindow>();
             sc.AddSingleton<GameLauncherWindow>();
             sc.AddSingleton<PlayerDockWindow>();
 
@@ -90,7 +89,6 @@ public partial class App : Application
             // when the backend response eventually arrives.
             _ = _services.GetRequiredService<IAgentService>().RefreshStaticPaymentQrUrlAsync(_startupCts.Token);
 
-            _ = _services.GetRequiredService<SessionOverlayWindow>();
             _ = _services.GetRequiredService<GameLauncherWindow>();  // creates Instance
             _ = _services.GetRequiredService<PlayerDockWindow>();    // creates Instance
             var kiosk = _services.GetRequiredService<KioskWindow>();
