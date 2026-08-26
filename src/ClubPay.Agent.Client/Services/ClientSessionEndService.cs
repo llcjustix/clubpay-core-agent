@@ -25,10 +25,7 @@ public sealed class ClientSessionEndService : IClientSessionEndService
         _endpoint = BuildEndpoint(configuration);
     }
 
-    public async Task<ClientSessionEndResult> EndCurrentSessionAsync(
-        string recipientPhone,
-        bool recipientConsent,
-        CancellationToken ct = default)
+    public async Task<ClientSessionEndResult> EndCurrentSessionAsync(CancellationToken ct = default)
     {
         var session = _coordinator.CurrentSession
             ?? throw new InvalidOperationException("Active session was not found");
@@ -41,8 +38,6 @@ public sealed class ClientSessionEndService : IClientSessionEndService
         {
             external_pc_id = _agent.ExternalPcId,
             core_session_id = coreSessionId.ToString("N"),
-            recipient_phone = recipientPhone,
-            recipient_consent = recipientConsent,
         });
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
         using var request = new HttpRequestMessage(HttpMethod.Post, _endpoint)

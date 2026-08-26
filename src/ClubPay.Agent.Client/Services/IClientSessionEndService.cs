@@ -14,8 +14,5 @@ public sealed record ClientSessionEndResult(
 /// </summary>
 public interface IClientSessionEndService
 {
-    Task<ClientSessionEndResult> EndCurrentSessionAsync(
-        string recipientPhone,
-        bool recipientConsent,
-        CancellationToken ct = default);
+    Task<ClientSessionEndResult> EndCurrentSessionAsync(CancellationToken ct = default);
 }

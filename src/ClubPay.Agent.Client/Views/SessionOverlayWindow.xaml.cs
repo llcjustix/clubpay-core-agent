@@ -34,7 +34,7 @@ public partial class SessionOverlayWindow : Window
 
         try
         {
-            var result = await _sessionEnd.EndCurrentSessionAsync(dialog.RecipientPhone, dialog.RecipientConsent);
+            var result = await _sessionEnd.EndCurrentSessionAsync();
             new VoucherDeliveryDialog(result, _qr).ShowDialog();
         }
         catch (Exception ex)
