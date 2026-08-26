@@ -338,7 +338,10 @@ public partial class GameLauncherViewModel : ObservableObject
         try
         {
             process.Refresh();
-            return !process.HasExited;
+            // A player-facing app is open only while its window is visible. Steam
+            // commonly keeps steam.exe alive in the tray after the player closes its
+            // window; keeping that stale process in the dock is misleading.
+            return !process.HasExited && NativeLauncher.IsVisibleWindow(process.MainWindowHandle);
         }
         catch
         {
@@ -496,6 +499,15 @@ internal static class NativeLauncher
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter,
         int x, int y, int cx, int cy, uint flags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool IsWindow(nint hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(nint hWnd);
+
+    internal static bool IsVisibleWindow(nint hWnd) =>
+        hWnd != nint.Zero && IsWindow(hWnd) && IsWindowVisible(hWnd);
 
     public static void RestoreAndForeground(nint hWnd)
     {
