@@ -19,7 +19,7 @@
   <!-- Compact, dark language selector.  This replaces the native Windows combo,
        whose white dropdown looked like a foreign control on the player shell. -->
   <Style x:Key="LanguagePickerItem" TargetType="ComboBoxItem">
-    <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+    <Setter Property="Foreground" Value="White"/>
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="Padding" Value="10,7"/>
     <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
@@ -40,7 +40,7 @@
   <Style x:Key="LanguagePicker" TargetType="ComboBox">
     <Setter Property="Width" Value="76"/>
     <Setter Property="Height" Value="32"/>
-    <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+    <Setter Property="Foreground" Value="White"/>
     <Setter Property="Background" Value="#FF121925"/>
     <Setter Property="BorderBrush" Value="#4D00D4FF"/>
     <Setter Property="BorderThickness" Value="1"/>
@@ -55,6 +55,7 @@
           <Grid SnapsToDevicePixels="True">
             <ToggleButton Name="PickerToggle"
                           Focusable="False"
+                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                           IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
                           ClickMode="Press">
               <ToggleButton.Template>
@@ -70,6 +71,7 @@
                         <ColumnDefinition Width="12"/>
                       </Grid.ColumnDefinitions>
                       <ContentPresenter VerticalAlignment="Center"
+                                        TextElement.Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                                         Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                                         ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                                         ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}"/>

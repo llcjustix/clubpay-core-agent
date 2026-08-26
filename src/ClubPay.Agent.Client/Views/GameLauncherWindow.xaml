@@ -157,13 +157,13 @@
           </StackPanel>
         </ScrollViewer>
 
-        <!-- The session card belongs to the same fullscreen launcher window.
-             A separate topmost window is unreliable in RDP/VM z-ordering and
-             was the reason the timer disappeared on the test machine. -->
-        <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,14,24,0">
-          <views:ActiveSessionView x:Name="SessionCard"/>
-        </Border>
       </Grid>
     </DockPanel>
+
+    <!-- The session card shares the launcher window, but sits above its header so
+         the single language picker and the timer use the highest right-hand area. -->
+    <Border Panel.ZIndex="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,18,24,0">
+      <views:ActiveSessionView x:Name="SessionCard"/>
+    </Border>
   </Grid>
 </Window>

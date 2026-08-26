@@ -58,8 +58,7 @@
 
       <!-- Language, time + lock badge -->
       <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-        <ComboBox Width="78" Height="34" Margin="0,0,18,0" Padding="5,1"
-                  Foreground="{StaticResource TextSecondary}" Background="#1AFFFFFF" BorderBrush="#3300D4FF"
+        <ComboBox Style="{StaticResource LanguagePicker}" Margin="0,0,18,0"
                   SelectedValue="{Binding Source={StaticResource Loc}, Path=LanguageCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                   SelectedValuePath="Tag" VerticalContentAlignment="Center">
           <ComboBoxItem Content="RU" Tag="ru"/>

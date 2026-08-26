@@ -23,6 +23,12 @@ public partial class PlayerDockWindow : Window
         PositionAtBottom();
         if (!IsVisible)
             Show();
+
+        // The launcher is also topmost. Reapply the dock's z-order on every
+        // return so it cannot slip behind the fullscreen window after a game
+        // has been minimised.
+        Topmost = false;
+        Topmost = true;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e) => PositionAtBottom();
