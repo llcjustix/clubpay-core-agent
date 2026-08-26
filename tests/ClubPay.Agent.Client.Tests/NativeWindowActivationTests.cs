@@ -1,4 +1,5 @@
 using ClubPay.Agent.Client.Views;
+using ClubPay.Agent.Client.ViewModels;
 
 namespace ClubPay.Agent.Client.Tests;
 
@@ -23,5 +24,15 @@ public sealed class NativeWindowActivationTests
         var result = NativeWindowActivation.WithNoActivate(style, enabled: false);
 
         Assert.Equal(existingStyle, result);
+    }
+
+    [Fact]
+    public void SteamLaunch_TracksSteamWebHelperForItsVisibleWindow()
+    {
+        var app = new ClubPay.Agent.Core.Models.LauncherApp("Steam", @"C:\Program Files (x86)\Steam\Steam.exe");
+
+        var names = GameLauncherViewModel.RelatedProcessNames(app);
+
+        Assert.Equal(["steam", "steamwebhelper"], names);
     }
 }

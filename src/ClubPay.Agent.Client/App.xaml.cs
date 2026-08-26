@@ -73,6 +73,7 @@ public partial class App : Application
             sc.AddSingleton<KioskWindow>();
             sc.AddSingleton<SessionOverlayWindow>();
             sc.AddSingleton<GameLauncherWindow>();
+            sc.AddSingleton<PlayerDockWindow>();
 
             _services = sc.BuildServiceProvider();
             Resources["Loc"] = _services.GetRequiredService<LocalizationService>();
@@ -91,6 +92,7 @@ public partial class App : Application
 
             _ = _services.GetRequiredService<SessionOverlayWindow>();
             _ = _services.GetRequiredService<GameLauncherWindow>();  // creates Instance
+            _ = _services.GetRequiredService<PlayerDockWindow>();    // creates Instance
             var kiosk = _services.GetRequiredService<KioskWindow>();
 
             // Explorer must remain available until the kiosk has actually rendered.

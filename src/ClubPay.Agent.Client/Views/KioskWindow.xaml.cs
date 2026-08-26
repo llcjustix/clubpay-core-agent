@@ -53,15 +53,21 @@ public partial class KioskWindow : Window
             // the player launcher can sit above it. It is restored to topmost as
             // soon as the session ends.
             Topmost = false;
-            SessionOverlayWindow.Instance?.Show();
             GameLauncherWindow.Instance?.Show();
             GameLauncherWindow.Instance?.Activate();
+            // Both windows are topmost.  The launcher is opaque and occupies the whole
+            // display, therefore showing it after the session card used to place it over
+            // the timer.  Put the timer back on top after the launcher has rendered.
+            SessionOverlayWindow.Instance?.Show();
+            SessionOverlayWindow.Instance?.Activate();
+            PlayerDockWindow.Instance?.ShowDock();
         }
         else
         {
             GameLauncherWindow.Instance?.EnterLauncherMode();
             GameLauncherWindow.Instance?.Hide();
             SessionOverlayWindow.Instance?.Hide();
+            PlayerDockWindow.Instance?.Hide();
             Topmost = true;
             Show();
             Activate();

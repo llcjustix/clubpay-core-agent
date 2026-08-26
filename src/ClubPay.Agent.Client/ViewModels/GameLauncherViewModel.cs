@@ -293,11 +293,10 @@ public partial class GameLauncherViewModel : ObservableObject
         if (_runningProcesses.TryGetValue(app, out var launchedProcess) && launchedProcess is not null)
             candidates.Add(launchedProcess);
 
-        var processName = Path.GetFileNameWithoutExtension(app.ExePath);
-        if (!string.IsNullOrWhiteSpace(processName))
+        foreach (var processName in RelatedProcessNames(app))
         {
             try { candidates.AddRange(Process.GetProcessesByName(processName)); }
-            catch (Exception ex) { _logger.LogDebug(ex, "Could not find running process for {AppName}", app.Name); }
+            catch (Exception ex) { _logger.LogDebug(ex, "Could not find process {ProcessName} for {AppName}", processName, app.Name); }
         }
 
         return candidates
@@ -357,21 +356,20 @@ public partial class GameLauncherViewModel : ObservableObject
             catch { }
         }
 
-        var processName = Path.GetFileNameWithoutExtension(app.ExePath);
-        if (string.IsNullOrWhiteSpace(processName))
-            return false;
-
         try
         {
-            foreach (var candidate in Process.GetProcessesByName(processName))
+            foreach (var processName in RelatedProcessNames(app))
             {
-                using (candidate)
+                foreach (var candidate in Process.GetProcessesByName(processName))
                 {
-                    if (candidate.MainWindowHandle == nint.Zero)
-                        continue;
+                    using (candidate)
+                    {
+                        if (candidate.MainWindowHandle == nint.Zero)
+                            continue;
 
-                    handle = candidate.MainWindowHandle;
-                    return true;
+                        handle = candidate.MainWindowHandle;
+                        return true;
+                    }
                 }
             }
         }
@@ -390,6 +388,20 @@ public partial class GameLauncherViewModel : ObservableObject
     private static bool IsSteamLaunch(LauncherApp app) =>
         Path.GetFileName(app.ExePath).Equals("steam.exe", StringComparison.OrdinalIgnoreCase);
 
+    internal static IReadOnlyList<string> RelatedProcessNames(LauncherApp app)
+    {
+        var processName = Path.GetFileNameWithoutExtension(app.ExePath);
+        if (string.IsNullOrWhiteSpace(processName))
+            return [];
+
+        // The current Steam desktop client owns its visible window through a
+        // steamwebhelper.exe process. Looking only at Steam.exe gives a successful
+        // launch state with no HWND to restore, leaving the opaque Agent shell on top.
+        return IsSteamLaunch(app)
+            ? ["steam", "steamwebhelper"]
+            : [processName];
+    }
+
     private static string GetSteamAppId(LauncherApp app) =>
         app.Args["-applaunch ".Length..].Trim();
 
@@ -403,7 +415,7 @@ internal static class NativeLauncher
 {
     public const int SW_MINIMIZE = 6;
     private const int SW_RESTORE = 9;
-    private static readonly nint HwndTopmost = new(-1);
+    private static readonly nint HwndTop = nint.Zero;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
     private const uint SwpShowWindow = 0x0040;
@@ -429,7 +441,9 @@ internal static class NativeLauncher
         // This is called from a player's explicit click, which lets Windows accept
         // the foreground request without exposing Explorer/taskbar in kiosk mode.
         ShowWindowAsync(hWnd, SW_RESTORE);
-        SetWindowPos(hWnd, HwndTopmost, 0, 0, 0, 0, SwpNoSize | SwpNoMove | SwpShowWindow);
+        // Keep the ClubPay dock above the player application. HWND_TOP restores
+        // Steam among normal windows; HWND_TOPMOST would cover the dock again.
+        SetWindowPos(hWnd, HwndTop, 0, 0, 0, 0, SwpNoSize | SwpNoMove | SwpShowWindow);
         BringWindowToTop(hWnd);
         SetForegroundWindow(hWnd);
     }

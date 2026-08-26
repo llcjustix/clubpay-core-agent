@@ -16,6 +16,101 @@
   <FontFamily x:Key="FontChakra">Chakra Petch, Segoe UI, Tahoma</FontFamily>
   <FontFamily x:Key="FontMono">JetBrains Mono, Consolas, Courier New</FontFamily>
 
+  <!-- Compact, dark language selector.  This replaces the native Windows combo,
+       whose white dropdown looked like a foreign control on the player shell. -->
+  <Style x:Key="LanguagePickerItem" TargetType="ComboBoxItem">
+    <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Padding" Value="10,7"/>
+    <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="HorizontalContentAlignment" Value="Left"/>
+    <Style.Triggers>
+      <Trigger Property="IsHighlighted" Value="True">
+        <Setter Property="Background" Value="#2600D4FF"/>
+        <Setter Property="Foreground" Value="White"/>
+      </Trigger>
+      <Trigger Property="IsSelected" Value="True">
+        <Setter Property="Background" Value="#1800D4FF"/>
+        <Setter Property="Foreground" Value="{StaticResource CyanBrush}"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <Style x:Key="LanguagePicker" TargetType="ComboBox">
+    <Setter Property="Width" Value="76"/>
+    <Setter Property="Height" Value="32"/>
+    <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+    <Setter Property="Background" Value="#FF121925"/>
+    <Setter Property="BorderBrush" Value="#4D00D4FF"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Padding" Value="10,0"/>
+    <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="ItemContainerStyle" Value="{StaticResource LanguagePickerItem}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ComboBox">
+          <Grid SnapsToDevicePixels="True">
+            <ToggleButton Name="PickerToggle"
+                          Focusable="False"
+                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                          ClickMode="Press">
+              <ToggleButton.Template>
+                <ControlTemplate TargetType="ToggleButton">
+                  <Border x:Name="PickerBorder"
+                          Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                          BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                          BorderThickness="{Binding BorderThickness, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                          CornerRadius="8">
+                    <Grid Margin="{Binding Padding, RelativeSource={RelativeSource AncestorType=ComboBox}}">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                      </Grid.ColumnDefinitions>
+                      <ContentPresenter VerticalAlignment="Center"
+                                        Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                        ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                        ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}"/>
+                      <Path Grid.Column="1" Data="M0,0 L8,0 L4,4 Z" Fill="#FF77DFF5"
+                            Width="8" Height="4" Stretch="Fill" VerticalAlignment="Center"/>
+                    </Grid>
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                      <Setter TargetName="PickerBorder" Property="BorderBrush" Value="#AA00D4FF"/>
+                      <Setter TargetName="PickerBorder" Property="Background" Value="#FF172334"/>
+                    </Trigger>
+                    <Trigger Property="IsChecked" Value="True">
+                      <Setter TargetName="PickerBorder" Property="BorderBrush" Value="#FF00D4FF"/>
+                    </Trigger>
+                    <Trigger Property="IsEnabled" Value="False">
+                      <Setter TargetName="PickerBorder" Property="Opacity" Value="0.45"/>
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </ToggleButton.Template>
+            </ToggleButton>
+            <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True" PopupAnimation="Fade"
+                   IsOpen="{TemplateBinding IsDropDownOpen}" Focusable="False">
+              <Border Margin="0,5,0,0" MinWidth="{TemplateBinding ActualWidth}"
+                      Background="#FF101722" BorderBrush="#6600D4FF" BorderThickness="1" CornerRadius="8"
+                      SnapsToDevicePixels="True">
+                <Border.Effect>
+                  <DropShadowEffect Color="#FF000000" BlurRadius="18" ShadowDepth="5" Opacity="0.5"/>
+                </Border.Effect>
+                <ScrollViewer Margin="3" CanContentScroll="True" VerticalScrollBarVisibility="Auto">
+                  <ItemsPresenter/>
+                </ScrollViewer>
+              </Border>
+            </Popup>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <!-- Zone badge style -->
   <Style x:Key="ZoneBadge" TargetType="Border">
     <Setter Property="CornerRadius"   Value="999"/>

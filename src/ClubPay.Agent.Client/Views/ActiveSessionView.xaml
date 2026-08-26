@@ -37,8 +37,7 @@
             <TextBlock Text="NEXUS ARENA" Foreground="White"
                        FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Bold"/>
           </StackPanel>
-          <ComboBox Grid.Column="1" Width="68" Height="30" Margin="0,0,10,0" Padding="4,0"
-                    Foreground="{StaticResource TextSecondary}" Background="#1AFFFFFF" BorderBrush="#3300D4FF"
+          <ComboBox Grid.Column="1" Style="{StaticResource LanguagePicker}" Margin="0,0,10,0"
                     SelectedValue="{Binding Source={StaticResource Loc}, Path=LanguageCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                     SelectedValuePath="Tag" VerticalContentAlignment="Center">
             <ComboBoxItem Content="RU" Tag="ru"/>
