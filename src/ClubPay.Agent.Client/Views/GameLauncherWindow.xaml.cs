@@ -37,9 +37,9 @@ public partial class GameLauncherWindow : Window
         vm.AppLaunched += _ => Dispatcher.Invoke(() =>
         {
             EnterExternalAppMode();
-            // Do not leave an opaque launcher below Steam. It is explicitly restored
-            // by the dock's return action, rather than relying on window z-order.
-            Hide();
+            // Keep the launcher rendered as the fallback background. If an app is
+            // slow, minimised, or returns a transient HWND, the player never gets
+            // a blank desktop with only the dock left behind.
             PlayerDockWindow.Instance?.ShowDock();
         });
 

@@ -28,6 +28,7 @@ public partial class GameLauncherViewModel : ObservableObject
     public event Action<LauncherApp> AppLaunched = delegate { };
 
     private readonly Dictionary<LauncherApp, Process?> _runningProcesses = [];
+    private readonly HashSet<LauncherApp> _lifetimeMonitors = [];
     private readonly ILogger<GameLauncherViewModel> _logger;
     private readonly IConfiguration _config;
     private readonly SteamGameDiscoveryService _steamGames;
@@ -144,21 +145,6 @@ public partial class GameLauncherViewModel : ObservableObject
         }
 
         _ = PromoteAppWhenReadyAsync(app);
-
-        // Both a Steam game URI and Steam.exe may hand control to an already-running Steam client
-        // and exit immediately. That hand-off is not the end of the player's application: keep
-        // Agent in external-app mode until the player explicitly returns or the session ends.
-        if (IsSteamLaunch(app))
-            return;
-
-        if (_runningProcesses.TryGetValue(app, out var launchedProcess) && launchedProcess is not null)
-        {
-            await launchedProcess.WaitForExitAsync();
-        }
-
-        UntrackApp(app);
-        if (!IsAppRunning)
-            ReturnRequested?.Invoke(); // last game exited → show launcher again
     }
 
     [RelayCommand]
@@ -188,6 +174,7 @@ public partial class GameLauncherViewModel : ObservableObject
         {
             if (TryFocusRunningApp(target))
             {
+                EnsureLifetimeMonitor(target);
                 AppLaunched(target);
                 return true;
             }
@@ -278,6 +265,10 @@ public partial class GameLauncherViewModel : ObservableObject
                     continue;
 
                 NativeLauncher.RestoreAndForeground(process.MainWindowHandle);
+                // Process.Start may return a short-lived bootstrapper. Track the
+                // process that actually owns the visible player window instead,
+                // so closing that application removes its dock entry.
+                _runningProcesses[app] = process;
                 RunningApp = app;
                 return true;
             }
@@ -295,7 +286,64 @@ public partial class GameLauncherViewModel : ObservableObject
         // Do not hide the launcher until the player application actually owns a
         // visible window. This is important for Steam, whose bootstrap process is
         // often alive well before the desktop client is ready.
-        await FocusRunningAppAsync(app);
+        if (await FocusRunningAppAsync(app))
+            return;
+
+        // No visible window appeared during the startup grace period. Keep the
+        // launcher on screen and remove the stale taskbar item instead of leaving
+        // the player with a dock entry that cannot be opened.
+        if (RunningApps.Contains(app))
+        {
+            UntrackApp(app);
+            LaunchError = _localizer.Format("LaunchFailed", app.Name);
+        }
+    }
+
+    private void EnsureLifetimeMonitor(LauncherApp app)
+    {
+        if (!_lifetimeMonitors.Add(app))
+            return;
+
+        _ = MonitorAppLifetimeAsync(app);
+    }
+
+    private async Task MonitorAppLifetimeAsync(LauncherApp app)
+    {
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1));
+
+            if (IsTrackedAppStillRunning(app))
+                continue;
+
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                _lifetimeMonitors.Remove(app);
+                if (!RunningApps.Contains(app))
+                    return;
+
+                UntrackApp(app);
+                if (!IsAppRunning)
+                    ReturnRequested?.Invoke();
+            });
+            return;
+        }
+    }
+
+    private bool IsTrackedAppStillRunning(LauncherApp app)
+    {
+        if (!_runningProcesses.TryGetValue(app, out var process) || process is null)
+            return false;
+
+        try
+        {
+            process.Refresh();
+            return !process.HasExited;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private IEnumerable<Process> GetTrackedProcesses(LauncherApp app)
@@ -324,6 +372,7 @@ public partial class GameLauncherViewModel : ObservableObject
         }
 
         _runningProcesses.Clear();
+        _lifetimeMonitors.Clear();
         RunningApps.Clear();
         RunningApp   = null;
         IsAppRunning = false;
@@ -342,6 +391,7 @@ public partial class GameLauncherViewModel : ObservableObject
     private void UntrackApp(LauncherApp app)
     {
         _runningProcesses.Remove(app);
+        _lifetimeMonitors.Remove(app);
         RunningApps.Remove(app);
         RunningApp = RunningApps.LastOrDefault();
         IsAppRunning = RunningApps.Count > 0;
