@@ -113,14 +113,16 @@ public partial class ActiveSessionViewModel : ObservableObject
         int totalMinutes = safeSeconds / 60;
         int hours = totalMinutes / 60;
         int minutes = totalMinutes % 60;
+        int seconds = safeSeconds % 60;
         string hourSuffix = _localizer.LanguageCode == "uz" ? "s" : "ч";
         string minuteSuffix = _localizer.LanguageCode == "uz" ? "d" : "м";
+        string secondSuffix = _localizer.LanguageCode == "uz" ? "s" : "с";
         if (safeSeconds <= (int)TimeSpan.FromDays(1).TotalSeconds)
-            return $"{hours:D2}{hourSuffix}:{minutes:D2}{minuteSuffix}";
+            return $"{hours:D2}{hourSuffix}:{minutes:D2}{minuteSuffix}:{seconds:D2}{secondSuffix}";
 
         int days = hours / 24;
         string daySuffix = _localizer.LanguageCode == "uz" ? "k" : "д";
-        return $"{days:D2}{daySuffix}:{hours % 24:D2}{hourSuffix}:{minutes:D2}{minuteSuffix}";
+        return $"{days:D2}{daySuffix}:{hours % 24:D2}{hourSuffix}:{minutes:D2}{minuteSuffix}:{seconds:D2}{secondSuffix}";
     }
 
 }
