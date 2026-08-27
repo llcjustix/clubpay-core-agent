@@ -1,5 +1,6 @@
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Core.Services;
@@ -16,6 +17,7 @@ public partial class ActiveSessionViewModel : ObservableObject
 {
     private readonly QrCodeService _qr;
     private readonly IAgentService _agent;
+    private readonly LocalizationService _localizer;
     private readonly DispatcherTimer _timer;
     private Session? _session;
     private string? _extendUrl;
@@ -26,12 +28,14 @@ public partial class ActiveSessionViewModel : ObservableObject
     [ObservableProperty] private string _zoneLabel = "";
     [ObservableProperty] private BitmapImage? _extendQrImage;
 
-    public ActiveSessionViewModel(QrCodeService qr, IAgentService agent)
+    public ActiveSessionViewModel(QrCodeService qr, IAgentService agent, LocalizationService localizer)
     {
         _qr = qr;
         _agent = agent;
+        _localizer = localizer;
         RefreshIdentity();
         _agent.BootstrapChanged += RefreshIdentity;
+        _localizer.PropertyChanged += OnLocalizationChanged;
         _timer = new DispatcherTimer(DispatcherPriority.Normal)
         { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => RefreshTime(DateTime.UtcNow);
@@ -97,17 +101,26 @@ public partial class ActiveSessionViewModel : ObservableObject
             ZoneLabel = _agent.ZoneName;
     }
 
-    private static string FormatTime(int totalSeconds)
+    private void OnLocalizationChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName == nameof(LocalizationService.LanguageCode))
+            RefreshTime(DateTime.UtcNow);
+    }
+
+    private string FormatTime(int totalSeconds)
     {
         int safeSeconds = Math.Max(0, totalSeconds);
         int totalMinutes = safeSeconds / 60;
         int hours = totalMinutes / 60;
         int minutes = totalMinutes % 60;
+        string hourSuffix = _localizer.LanguageCode == "uz" ? "s" : "ч";
+        string minuteSuffix = _localizer.LanguageCode == "uz" ? "d" : "м";
         if (safeSeconds <= (int)TimeSpan.FromDays(1).TotalSeconds)
-            return $"{hours:D2}:{minutes:D2}";
+            return $"{hours:D2}{hourSuffix}:{minutes:D2}{minuteSuffix}";
 
         int days = hours / 24;
-        return $"{days:D2}:{hours % 24:D2}:{minutes:D2}";
+        string daySuffix = _localizer.LanguageCode == "uz" ? "k" : "д";
+        return $"{days:D2}{daySuffix}:{hours % 24:D2}{hourSuffix}:{minutes:D2}{minuteSuffix}";
     }
 
 }
