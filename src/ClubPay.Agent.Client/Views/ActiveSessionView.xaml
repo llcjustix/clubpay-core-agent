@@ -77,7 +77,7 @@
 
         <!-- Timer countdown -->
         <TextBlock Text="{Binding RemainingTimeText}" Margin="0,6,0,0"
-                   FontFamily="{StaticResource FontMono}" FontSize="60" FontWeight="Bold"
+                   FontFamily="{StaticResource FontMono}" FontSize="18" FontWeight="Bold"
                    Foreground="{Binding RemainingSeconds, Converter={StaticResource TimerBrush}}">
           <TextBlock.Effect>
             <DropShadowEffect x:Name="TimerGlow" Color="#FF00FF88"
