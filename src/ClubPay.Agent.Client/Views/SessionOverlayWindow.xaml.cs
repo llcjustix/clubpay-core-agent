@@ -35,7 +35,8 @@ public partial class SessionOverlayWindow : Window
         try
         {
             var result = await _sessionEnd.EndCurrentSessionAsync();
-            new VoucherDeliveryDialog(result, _qr).ShowDialog();
+            if (!result.IsProfileSession)
+                new VoucherDeliveryDialog(result, _qr).ShowDialog();
         }
         catch (Exception ex)
         {

@@ -59,6 +59,7 @@ public sealed class ClientSessionEndService : IClientSessionEndService
         var voucher = root.TryGetProperty("voucher", out var voucherElement) ? voucherElement : default;
         var delivery = root.TryGetProperty("voucher_delivery", out var deliveryElement) ? deliveryElement : default;
         return new ClientSessionEndResult(
+            IsProfileSession: root.TryGetProperty("player_profile", out var playerProfile) && playerProfile.ValueKind == JsonValueKind.True,
             VoucherCode: voucher.ValueKind == JsonValueKind.Object ? ReadString(voucher, "code") : null,
             VoucherSeconds: voucher.ValueKind == JsonValueKind.Object ? ReadInt(voucher, "seconds_left") : 0,
             ProfileBalanceAddedSeconds: root.TryGetProperty("player_balance", out var playerBalance) && playerBalance.ValueKind == JsonValueKind.Object

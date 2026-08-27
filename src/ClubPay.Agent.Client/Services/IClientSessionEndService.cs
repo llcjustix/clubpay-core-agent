@@ -1,6 +1,7 @@
 namespace ClubPay.Agent.Client.Services;
 
 public sealed record ClientSessionEndResult(
+    bool IsProfileSession,
     string? VoucherCode,
     int VoucherSeconds,
     int ProfileBalanceAddedSeconds,
