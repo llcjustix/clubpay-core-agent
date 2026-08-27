@@ -15,6 +15,7 @@ public sealed class AgentService : IAgentService
     public ZoneType Zone { get; }
     public string ZoneName { get; private set; }
     public string ClubName { get; private set; }
+    public string TimeZoneId { get; private set; }
     public string WifiSsid { get; }
     public string WifiPassword { get; }
     public string? StaticPaymentQrUrl { get; private set; }
@@ -30,6 +31,7 @@ public sealed class AgentService : IAgentService
         _logger = logger;
         PcId = config["Agent:PcId"] ?? "PC-01";
         ClubName = config["Agent:ClubName"] ?? "NEXUS ARENA";
+        TimeZoneId = config["Agent:TimeZone"] ?? "Asia/Tashkent";
         WifiSsid = config["Agent:WifiSsid"] ?? "ClubPay-Guest";
         WifiPassword = config["Agent:WifiPassword"] ?? string.Empty;
         Zone = Enum.TryParse<ZoneType>(config["Agent:Zone"], out var z) ? z : ZoneType.Standard;
@@ -113,6 +115,12 @@ public sealed class AgentService : IAgentService
         if (!string.IsNullOrWhiteSpace(zoneName) && !string.Equals(ZoneName, zoneName, StringComparison.Ordinal))
         {
             ZoneName = zoneName;
+            changed = true;
+        }
+        var timeZoneId = ReadNestedString(payload, "club", "timezone");
+        if (!string.IsNullOrWhiteSpace(timeZoneId) && !string.Equals(TimeZoneId, timeZoneId, StringComparison.Ordinal))
+        {
+            TimeZoneId = timeZoneId;
             changed = true;
         }
         return changed;

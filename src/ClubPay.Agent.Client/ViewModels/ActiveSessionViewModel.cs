@@ -20,7 +20,7 @@ public partial class ActiveSessionViewModel : ObservableObject
     private Session? _session;
     private string? _extendUrl;
 
-    [ObservableProperty] private string _remainingTimeText = "01:24:35";
+    [ObservableProperty] private string _remainingTimeText = "01:24";
     [ObservableProperty] private int _remainingSeconds = 5075;
     [ObservableProperty] private string _clubName = "ClubPay";
     [ObservableProperty] private string _zoneLabel = "";
@@ -99,10 +99,15 @@ public partial class ActiveSessionViewModel : ObservableObject
 
     private static string FormatTime(int totalSeconds)
     {
-        int h = totalSeconds / 3600;
-        int m = (totalSeconds % 3600) / 60;
-        int s = totalSeconds % 60;
-        return h > 0 ? $"{h:D2}:{m:D2}:{s:D2}" : $"{m:D2}:{s:D2}";
+        int safeSeconds = Math.Max(0, totalSeconds);
+        int totalMinutes = safeSeconds / 60;
+        int hours = totalMinutes / 60;
+        int minutes = totalMinutes % 60;
+        if (safeSeconds <= (int)TimeSpan.FromDays(1).TotalSeconds)
+            return $"{hours:D2}:{minutes:D2}";
+
+        int days = hours / 24;
+        return $"{days:D2}:{hours % 24:D2}:{minutes:D2}";
     }
 
 }

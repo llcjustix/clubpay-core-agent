@@ -11,6 +11,8 @@ public interface IAgentService
     ZoneType Zone { get; }
     string ZoneName { get; }
     string ClubName { get; }
+    /// <summary>IANA or Windows timezone supplied by Core for player-facing clock display.</summary>
+    string TimeZoneId { get; }
     string WifiSsid { get; }
     string WifiPassword { get; }
     /// <summary>The public static payment QR URL returned by Core bootstrap for this PC.</summary>

@@ -16,11 +16,12 @@ public partial class LockScreenViewModel : ObservableObject
     private readonly IAgentService _agent;
     private readonly QrCodeService _qr;
     private readonly DispatcherTimer _clock;
+    private TimeZoneInfo _clubTimeZone = TimeZoneInfo.Local;
 
     [ObservableProperty] private string _pcId = "PC-12";
     [ObservableProperty] private string _zoneLabel = "Standard Zone · Standart Zona";
     [ObservableProperty] private string _clubName = "NEXUS ARENA";
-    [ObservableProperty] private string _currentTime = DateTime.Now.ToString("HH:mm");
+    [ObservableProperty] private string _currentTime = "--:--";
 
     [ObservableProperty] private BitmapImage? _payQrImage;
     [ObservableProperty] private BitmapImage? _wifiQrImage;
@@ -34,7 +35,7 @@ public partial class LockScreenViewModel : ObservableObject
 
         _clock = new DispatcherTimer(DispatcherPriority.Background)
         { Interval = TimeSpan.FromSeconds(1) };
-        _clock.Tick += (_, _) => CurrentTime = DateTime.Now.ToString("HH:mm");
+        _clock.Tick += (_, _) => RefreshClock();
         _clock.Start();
 
         _agent.StaticPaymentQrUrlChanged += RefreshPaymentQr;
@@ -73,6 +74,27 @@ public partial class LockScreenViewModel : ObservableObject
         PcId = _agent.PcId;
         ClubName = _agent.ClubName;
         ZoneLabel = _agent.ZoneName;
+        _clubTimeZone = ResolveTimeZone(_agent.TimeZoneId);
+        RefreshClock();
+    }
+
+    private void RefreshClock()
+        => CurrentTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _clubTimeZone).ToString("HH:mm");
+
+    private static TimeZoneInfo ResolveTimeZone(string? timeZoneId)
+    {
+        foreach (var candidate in new[] { timeZoneId, "Asia/Tashkent", "West Asia Standard Time" })
+        {
+            if (string.IsNullOrWhiteSpace(candidate))
+                continue;
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(candidate);
+            }
+            catch (TimeZoneNotFoundException) { }
+            catch (InvalidTimeZoneException) { }
+        }
+        return TimeZoneInfo.Local;
     }
 
     /// <summary>Called by MainViewModel whenever the coordinator reports a fresh transition to Locked.</summary>
