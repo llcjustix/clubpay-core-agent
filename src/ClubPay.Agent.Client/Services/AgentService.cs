@@ -29,7 +29,7 @@ public sealed class AgentService : IAgentService
     public AgentService(IConfiguration config, ILogger<AgentService> logger)
     {
         _logger = logger;
-        PcId = config["Agent:PcId"] ?? "PC-01";
+        PcId = MachineNameTemplate.Expand(config["Agent:PcId"] ?? "PC-01")!;
         ClubName = config["Agent:ClubName"] ?? "NEXUS ARENA";
         TimeZoneId = config["Agent:TimeZone"] ?? "Asia/Tashkent";
         WifiSsid = config["Agent:WifiSsid"] ?? "ClubPay-Guest";
@@ -37,7 +37,7 @@ public sealed class AgentService : IAgentService
         Zone = Enum.TryParse<ZoneType>(config["Agent:Zone"], out var z) ? z : ZoneType.Standard;
         ZoneName = config["Agent:ZoneName"] ?? Zone.ToString();
 
-        var externalPcId = config["Controller:ExternalPcId"];
+        var externalPcId = MachineNameTemplate.Expand(config["Controller:ExternalPcId"]);
         if (string.IsNullOrWhiteSpace(externalPcId))
         {
             logger.LogWarning("Controller:ExternalPcId is not configured — falling back to lowercased PcId");

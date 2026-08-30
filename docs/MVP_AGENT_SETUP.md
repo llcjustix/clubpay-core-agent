@@ -15,6 +15,33 @@ run a local Controller or expose an inbound port.
 5. Start the Agent. It first opens WSS and asks Core bootstrap for the static public QR URL. The
    static QR must never be assembled from `external_pc_id` locally.
 
+## Shared diskless Windows image
+
+For a diskless club, install the executable once in the master Windows image. Do **not** bake one
+fixed `ExternalPcId` or one shared state file into that image: all clients would otherwise connect
+as the same ClubPay PC.
+
+Give every Windows client a unique computer name of at most 15 characters, for example `CP001`,
+`CP002`. In ClubPay admin create the matching PCs with external IDs `cp001`, `cp002`. In the
+shared `appsettings.Local.json` use the supported placeholders:
+
+```json
+{
+  "Agent": {
+    "PcId": "PC {MACHINE_NAME}",
+    "DataDirectory": "C:\\ProgramData\\ClubPay\\Agent\\state\\{MACHINE_NAME_LOWER}"
+  },
+  "Controller": {
+    "ExternalPcId": "{MACHINE_NAME_LOWER}",
+    "AgentToken": "PUT_CORE_TOKEN_HERE"
+  }
+}
+```
+
+The Agent expands `{MACHINE_NAME}`, `{MACHINE_NAME_LOWER}` and `{MACHINE_NAME_UPPER}` when it
+starts. The diskless system must keep these per-client state folders separate and writable; they
+contain active-session recovery and undelivered event data.
+
 ## Automatic startup on a club PC
 
 The Agent must **not** be started manually on a club PC. The one-time installation below registers

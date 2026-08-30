@@ -50,6 +50,31 @@ public class AgentStateRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAsync_ExpandsMachineNameInSharedImageStateDirectory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "clubpay-agent-template-tests-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Agent:DataDirectory"] = Path.Combine(root, "{MACHINE_NAME_LOWER}"),
+                })
+                .Build();
+            var sut = new AgentStateRepository(config, NullLogger<AgentStateRepository>.Instance);
+
+            await sut.SaveAsync(MakeSession());
+
+            Assert.True(File.Exists(Path.Combine(root, Environment.MachineName.ToLowerInvariant(), "agent-state.json")));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task RecordAppliedAsync_ThenHasAppliedAsync_ReturnsTrueAfterRestart()
     {
         var sut = BuildSut();

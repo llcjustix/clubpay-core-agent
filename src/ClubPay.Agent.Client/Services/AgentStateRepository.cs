@@ -31,7 +31,7 @@ public sealed class AgentStateRepository : ISessionStore, IGrantIdempotencyStore
     {
         _logger = logger;
 
-        var dataDir = config["Agent:DataDirectory"];
+        var dataDir = MachineNameTemplate.Expand(config["Agent:DataDirectory"]);
         if (string.IsNullOrWhiteSpace(dataDir))
         {
             dataDir = Path.Combine(
