@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Net.Http;
 using System.Windows;
 using Microsoft.Extensions.Configuration;
@@ -73,7 +72,6 @@ public partial class AdminWindow : Window
     private void Navigate()
     {
         UnavailableOverlay.Visibility = Visibility.Collapsed;
-        ConnectionStatus.Text = _usingLocalController ? "Локальный Controller" : "Подключение к Cloud…";
         ManagerWebView.CoreWebView2.Navigate(_adminUri.AbsoluteUri);
     }
 
@@ -81,7 +79,6 @@ public partial class AdminWindow : Window
     {
         if (e.IsSuccess)
         {
-            ConnectionStatus.Text = _usingLocalController ? "Локальный Controller" : "Cloud подключён";
             return;
         }
         if (!_usingLocalController && !_fallbackAttempted && _localAdminUris.Count > 0)
@@ -93,7 +90,7 @@ public partial class AdminWindow : Window
         ShowUnavailable("Cloud и локальный Controller недоступны. Проверьте сеть клуба и сервис ClubPay Controller Node.");
     }
 
-    private void Reload_Click(object sender, RoutedEventArgs e)
+    private void Retry_Click(object sender, RoutedEventArgs e)
     {
         if (ManagerWebView.CoreWebView2 is null)
         {
@@ -103,14 +100,8 @@ public partial class AdminWindow : Window
         _ = ResolveAndNavigateAsync();
     }
 
-    private void OpenBrowser_Click(object sender, RoutedEventArgs e)
-    {
-        Process.Start(new ProcessStartInfo(_adminUri.AbsoluteUri) { UseShellExecute = true });
-    }
-
     private void ShowUnavailable(string message)
     {
-        ConnectionStatus.Text = "Нет подключения";
         UnavailableMessage.Text = message;
         UnavailableOverlay.Visibility = Visibility.Visible;
     }

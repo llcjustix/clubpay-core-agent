@@ -7,24 +7,13 @@
         WindowStartupLocation="CenterScreen" Background="#07101c">
   <DockPanel>
     <Border DockPanel.Dock="Top" Background="#0d1a2a" BorderBrush="#1c3c50" BorderThickness="0,0,0,1" Padding="18,12">
-      <Grid>
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*" />
-          <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-          <TextBlock Text="◆" Foreground="#11d8d0" FontSize="25" Margin="0,0,10,0" />
-          <StackPanel>
-            <TextBlock Text="ClubPay Manager" Foreground="#f5fbff" FontWeight="SemiBold" FontSize="17" />
-            <TextBlock Text="Управление залом, оплатами и настройками" Foreground="#8da5bb" FontSize="12" />
-          </StackPanel>
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <TextBlock Text="◆" Foreground="#11d8d0" FontSize="25" Margin="0,0,10,0" />
+        <StackPanel>
+          <TextBlock Text="ClubPay Manager" Foreground="#f5fbff" FontWeight="SemiBold" FontSize="17" />
+          <TextBlock Text="Управление залом, оплатами и настройками" Foreground="#8da5bb" FontSize="12" />
         </StackPanel>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-          <TextBlock x:Name="ConnectionStatus" Text="Загрузка панели…" Foreground="#8da5bb" VerticalAlignment="Center" Margin="0,0,14,0" />
-          <Button Content="Обновить" Padding="14,7" Margin="0,0,8,0" Click="Reload_Click" />
-          <Button Content="Открыть в браузере" Padding="14,7" Click="OpenBrowser_Click" />
-        </StackPanel>
-      </Grid>
+      </StackPanel>
     </Border>
     <Grid>
       <wv2:WebView2 x:Name="ManagerWebView" NavigationCompleted="ManagerWebView_NavigationCompleted" />
@@ -32,7 +21,7 @@
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="520">
           <TextBlock Text="Не удалось открыть ClubPay" Foreground="White" FontSize="26" FontWeight="SemiBold" TextAlignment="Center" />
           <TextBlock x:Name="UnavailableMessage" Foreground="#a8b8c9" FontSize="15" TextWrapping="Wrap" TextAlignment="Center" Margin="0,14,0,22" />
-          <Button Content="Открыть админку в браузере" Padding="18,10" HorizontalAlignment="Center" Click="OpenBrowser_Click" />
+          <Button Content="Повторить подключение" Padding="18,10" HorizontalAlignment="Center" Click="Retry_Click" />
         </StackPanel>
       </Border>
     </Grid>
