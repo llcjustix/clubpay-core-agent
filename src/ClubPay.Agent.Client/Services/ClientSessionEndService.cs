@@ -12,7 +12,7 @@ public sealed class ClientSessionEndService : IClientSessionEndService
     private readonly ISessionCoordinator _coordinator;
     private readonly IAgentService _agent;
     private readonly string _agentToken;
-    private readonly Uri? _endpoint;
+    private readonly IReadOnlyList<Uri> _endpoints;
 
     public ClientSessionEndService(
         ISessionCoordinator coordinator,
@@ -22,7 +22,7 @@ public sealed class ClientSessionEndService : IClientSessionEndService
         _coordinator = coordinator;
         _agent = agent;
         _agentToken = configuration["Controller:AgentToken"] ?? string.Empty;
-        _endpoint = BuildEndpoint(configuration);
+        _endpoints = BuildEndpoints(configuration);
     }
 
     public async Task<ClientSessionEndResult> EndCurrentSessionAsync(CancellationToken ct = default)
@@ -31,7 +31,7 @@ public sealed class ClientSessionEndService : IClientSessionEndService
             ?? throw new InvalidOperationException("Active session was not found");
         if (session.CoreSessionId is not { } coreSessionId)
             throw new InvalidOperationException("Session is not linked to Core");
-        if (_endpoint is null)
+        if (_endpoints.Count == 0)
             throw new InvalidOperationException("Core session-end endpoint is not configured");
 
         var body = JsonSerializer.Serialize(new
@@ -39,46 +39,84 @@ public sealed class ClientSessionEndService : IClientSessionEndService
             external_pc_id = _agent.ExternalPcId,
             core_session_id = coreSessionId.ToString("N"),
         });
-        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        using var request = new HttpRequestMessage(HttpMethod.Post, _endpoint)
+        string? lastError = null;
+        foreach (var endpoint in _endpoints)
         {
-            Content = new StringContent(body, Encoding.UTF8, "application/json"),
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _agentToken);
+            try
+            {
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+                using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                {
+                    Content = new StringContent(body, Encoding.UTF8, "application/json"),
+                };
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _agentToken);
 
-        using var response = await client.SendAsync(request, ct);
-        var responseBody = await response.Content.ReadAsStringAsync(ct);
-        if (!response.IsSuccessStatusCode)
-        {
-            var message = ReadString(responseBody, "error") ?? "Could not end the session";
-            throw new InvalidOperationException(message);
+                using var response = await client.SendAsync(request, ct);
+                var responseBody = await response.Content.ReadAsStringAsync(ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    lastError = ReadString(responseBody, "error") ?? "Could not end the session";
+                    continue;
+                }
+
+                using var document = JsonDocument.Parse(responseBody);
+                var root = document.RootElement;
+                var voucher = root.TryGetProperty("voucher", out var voucherElement) ? voucherElement : default;
+                var delivery = root.TryGetProperty("voucher_delivery", out var deliveryElement) ? deliveryElement : default;
+                return new ClientSessionEndResult(
+                    IsProfileSession: root.TryGetProperty("player_profile", out var playerProfile) && playerProfile.ValueKind == JsonValueKind.True,
+                    VoucherCode: voucher.ValueKind == JsonValueKind.Object ? ReadString(voucher, "code") : null,
+                    VoucherSeconds: voucher.ValueKind == JsonValueKind.Object ? ReadInt(voucher, "seconds_left") : 0,
+                    ProfileBalanceAddedSeconds: root.TryGetProperty("player_balance", out var playerBalance) && playerBalance.ValueKind == JsonValueKind.Object
+                        ? ReadInt(playerBalance, "seconds_added")
+                        : 0,
+                    DeliveryStatus: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "status") ?? "not_requested" : "not_requested",
+                    TelegramLink: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "telegram_link") : null,
+                    TelegramBotUsername: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "telegram_bot_username") : null);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex.Message;
+            }
         }
 
-        using var document = JsonDocument.Parse(responseBody);
-        var root = document.RootElement;
-        var voucher = root.TryGetProperty("voucher", out var voucherElement) ? voucherElement : default;
-        var delivery = root.TryGetProperty("voucher_delivery", out var deliveryElement) ? deliveryElement : default;
-        return new ClientSessionEndResult(
-            IsProfileSession: root.TryGetProperty("player_profile", out var playerProfile) && playerProfile.ValueKind == JsonValueKind.True,
-            VoucherCode: voucher.ValueKind == JsonValueKind.Object ? ReadString(voucher, "code") : null,
-            VoucherSeconds: voucher.ValueKind == JsonValueKind.Object ? ReadInt(voucher, "seconds_left") : 0,
-            ProfileBalanceAddedSeconds: root.TryGetProperty("player_balance", out var playerBalance) && playerBalance.ValueKind == JsonValueKind.Object
-                ? ReadInt(playerBalance, "seconds_added")
-                : 0,
-            DeliveryStatus: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "status") ?? "not_requested" : "not_requested",
-            TelegramLink: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "telegram_link") : null,
-            TelegramBotUsername: delivery.ValueKind == JsonValueKind.Object ? ReadString(delivery, "telegram_bot_username") : null);
+        throw new InvalidOperationException(lastError ?? "Could not end the session");
     }
 
-    private static Uri? BuildEndpoint(IConfiguration configuration)
+    private static IReadOnlyList<Uri> BuildEndpoints(IConfiguration configuration)
     {
-        var configured = configuration["Controller:SessionEndUrl"];
-        if (Uri.TryCreate(configured, UriKind.Absolute, out var explicitUri))
-            return explicitUri;
+        var endpoints = new List<Uri>();
+        AddEndpoint(endpoints, configuration["Controller:SessionEndUrl"]);
+        foreach (var child in configuration.GetSection("Controller:FallbackSessionEndUrls").GetChildren())
+            AddEndpoint(endpoints, child.Value);
+        foreach (var value in (configuration["Controller:FallbackSessionEndUrls"] ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            AddEndpoint(endpoints, value);
 
-        if (!Uri.TryCreate(configuration["Controller:BootstrapUrl"], UriKind.Absolute, out var bootstrap))
-            return null;
-        return new Uri(bootstrap, "/api/core/agent/session/end");
+        if (endpoints.Count > 0)
+            return endpoints;
+
+        AddBootstrapEndpoint(endpoints, configuration["Controller:BootstrapUrl"]);
+        foreach (var child in configuration.GetSection("Controller:FallbackBootstrapUrls").GetChildren())
+            AddBootstrapEndpoint(endpoints, child.Value);
+        foreach (var value in (configuration["Controller:FallbackBootstrapUrls"] ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            AddBootstrapEndpoint(endpoints, value);
+        return endpoints;
+    }
+
+    private static void AddBootstrapEndpoint(ICollection<Uri> endpoints, string? value)
+    {
+        if (Uri.TryCreate(value, UriKind.Absolute, out var bootstrap))
+            AddEndpoint(endpoints, new Uri(bootstrap, "/api/core/agent/session/end").AbsoluteUri);
+    }
+
+    private static void AddEndpoint(ICollection<Uri> endpoints, string? value)
+    {
+        if (Uri.TryCreate(value, UriKind.Absolute, out var endpoint) && !endpoints.Any(existing => existing == endpoint))
+            endpoints.Add(endpoint);
     }
 
     private static string? ReadString(string json, string name)

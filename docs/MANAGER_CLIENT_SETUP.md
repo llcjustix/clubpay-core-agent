@@ -1,16 +1,20 @@
 # ClubPay Manager Client — быстрый запуск
 
-Это приложение ставится на компьютер менеджера. Оно открывает настоящую production-админку
-ClubPay внутри отдельного Windows EXE, поэтому в нём всегда доступны все текущие функции веб-панели:
-зал, касса, завершение сессий, настройки, сотрудники, QR и отчёты. Никакой отдельной локальной
-копии базы или пароля в EXE нет.
+Это приложение ставится на компьютер менеджера. Оно открывает настоящую админку ClubPay внутри
+отдельного Windows EXE: зал, касса, завершение сессий, настройки, сотрудники, QR и отчёты.
+В нормальном режиме это Cloud-панель; при недоступности Cloud оно открывает локальную копию той же
+панели, которую обслуживает установленный на этом ПК ClubPay Controller Node.
 
 ## Установка
 
 1. Откройте [GitHub Releases](https://github.com/llcjustix/clubpay-core-agent/releases) и скачайте
    `ClubPay-Manager-win-x64.zip`.
 2. Распакуйте архив в `C:\ClubPay\Manager`.
-3. Запустите `ClubPay.Agent.Admin.exe` и войдите теми же данными, что в
+3. Для полноценного резерва распакуйте пакет **ClubPay Controller Node** в
+   `C:\ClubPay\ManagerController`, в `controller.env` установите `NODE_MODE=manager` и выполните
+   `install-windows.cmd` от имени администратора. Без этого шага Manager Client остаётся
+   Cloud-клиентом, но не сможет управлять клубом при недоступности Cloud.
+4. Запустите `ClubPay.Agent.Admin.exe` и войдите теми же данными, что в
    [web-админке](https://clubpay.justix.uz/admin).
 
 Microsoft Edge WebView2 Runtime обычно уже есть в Windows 10/11. Если EXE покажет сообщение о его
@@ -27,6 +31,10 @@ Microsoft Edge WebView2 Runtime обычно уже есть в Windows 10/11. �
 
 ## Важно
 
-- Manager Client требует интернет до `https://clubpay.justix.uz`.
-- Он не заменяет локальный сервер и не управляет Windows игрового ПК напрямую.
-- Wake-on-LAN выполняет отдельный `clubpay-edge-wol` на сервере клуба или Raspberry Pi.
+- При работающем Cloud Manager Client открывает `https://clubpay.justix.uz/admin`.
+- При падении Cloud он автоматически переключается на `http://127.0.0.1:8080/admin`, если на
+  менеджерском ПК установлен и запущен **ClubPay Controller Node** в режиме `NODE_MODE=manager`.
+  Это не отдельная урезанная админка: локальная PWA использует тот же набор операций, что и веб-панель.
+- Он не управляет Windows игрового ПК напрямую: команды уходят Agent Core через доступный Controller.
+- Wake-on-LAN выполняет Controller Node на сервере клуба/Pi/ПК менеджера, в зависимости от того,
+  какой узел сейчас является доступным локальным контроллером.

@@ -87,7 +87,9 @@ public partial class App : Application
             // Bootstrap is deliberately non-blocking: a transient Core/network outage must not keep a
             // Windows PC from reaching its locked kiosk screen. LockScreenViewModel refreshes its QR
             // when the backend response eventually arrives.
-            _ = _services.GetRequiredService<IAgentService>().RefreshStaticPaymentQrUrlAsync(_startupCts.Token);
+            var agent = _services.GetRequiredService<IAgentService>();
+            _ = agent.RefreshStaticPaymentQrUrlAsync(_startupCts.Token);
+            _ = RefreshBootstrapLoopAsync(agent, _startupCts.Token);
 
             _ = _services.GetRequiredService<GameLauncherWindow>();  // creates Instance
             _ = _services.GetRequiredService<PlayerDockWindow>();    // creates Instance
@@ -154,6 +156,20 @@ public partial class App : Application
             MessageBoxImage.Error);
 
         Shutdown(-1);
+    }
+
+    private static async Task RefreshBootstrapLoopAsync(IAgentService agent, CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+                await agent.RefreshStaticPaymentQrUrlAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Application is closing.
+        }
     }
 
     protected override async void OnExit(ExitEventArgs e)

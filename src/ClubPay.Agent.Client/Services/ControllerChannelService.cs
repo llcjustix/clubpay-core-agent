@@ -22,7 +22,7 @@ public sealed class ControllerChannelService : IControllerChannel
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IControllerOutbox _outbox;
-    private readonly string _webSocketUrl;
+    private readonly IReadOnlyList<string> _webSocketUrls;
     private readonly string _agentToken;
     private readonly string _externalPcId;
     private readonly ILogger<ControllerChannelService> _logger;
@@ -48,7 +48,7 @@ public sealed class ControllerChannelService : IControllerChannel
         _serviceProvider = serviceProvider;
         _outbox = outbox;
         _logger = logger;
-        _webSocketUrl = config["Controller:WebSocketUrl"] ?? string.Empty;
+        _webSocketUrls = ReadUrls(config, "Controller:WebSocketUrl", "Controller:FallbackWebSocketUrls");
         _agentToken = config["Controller:AgentToken"] ?? string.Empty;
         _externalPcId = config["Controller:ExternalPcId"] ?? string.Empty;
     }
@@ -58,7 +58,7 @@ public sealed class ControllerChannelService : IControllerChannel
         if (_runLoopTask is not null)
             return Task.CompletedTask;
 
-        if (string.IsNullOrWhiteSpace(_webSocketUrl))
+        if (_webSocketUrls.Count == 0)
         {
             _logger.LogWarning("Controller:WebSocketUrl sozlanmagan — kanal ishga tushmaydi");
             return Task.CompletedTask;
@@ -114,41 +114,48 @@ public sealed class ControllerChannelService : IControllerChannel
         int attempt = 0;
         while (!ct.IsCancellationRequested)
         {
-            ClientWebSocket? socket = null;
-            try
+            SetState(attempt == 0 ? ChannelConnectionState.Connecting : ChannelConnectionState.Reconnecting);
+            var connected = false;
+            foreach (var endpoint in _webSocketUrls)
             {
-                SetState(attempt == 0 ? ChannelConnectionState.Connecting : ChannelConnectionState.Reconnecting);
+                ClientWebSocket? socket = null;
+                try
+                {
+                    socket = new ClientWebSocket();
+                    socket.Options.SetRequestHeader("Authorization", $"Bearer {_agentToken}");
+                    socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(Constants.ControllerChannel.HeartbeatIntervalSeconds);
+                    await socket.ConnectAsync(BuildUri(endpoint), ct);
 
-                socket = new ClientWebSocket();
-                socket.Options.SetRequestHeader("Authorization", $"Bearer {_agentToken}");
-                socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(Constants.ControllerChannel.HeartbeatIntervalSeconds);
-                await socket.ConnectAsync(BuildUri(), ct);
+                    connected = true;
+                    SetState(ChannelConnectionState.Connected);
+                    attempt = 0;
+                    _logger.LogInformation("Controller channel connected to {Endpoint}", endpoint);
+                    await PublishEventAsync(Constants.ControllerChannel.EventName.AgentOnline, new AgentOnlineEvent(_externalPcId), ct);
 
-                SetState(ChannelConnectionState.Connected);
-                attempt = 0;
-
-                await PublishEventAsync(Constants.ControllerChannel.EventName.AgentOnline, new AgentOnlineEvent(_externalPcId), ct);
-
-                var receiveTask = ReceiveLoopAsync(socket, ct);
-                var sendTask = SendLoopAsync(socket, ct);
-                await Task.WhenAny(receiveTask, sendTask);
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Controller kanaliga ulanishda xato");
-            }
-            finally
-            {
-                socket?.Dispose();
+                    var receiveTask = ReceiveLoopAsync(socket, ct);
+                    var sendTask = SendLoopAsync(socket, ct);
+                    await Task.WhenAny(receiveTask, sendTask);
+                    break;
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Controller channel endpoint {Endpoint} is unavailable", endpoint);
+                }
+                finally
+                {
+                    socket?.Dispose();
+                }
             }
 
             if (ct.IsCancellationRequested)
                 break;
 
+            if (!connected)
+                _logger.LogWarning("All configured Controller endpoints are unavailable");
             attempt++;
             SetState(ChannelConnectionState.Reconnecting);
             try
@@ -268,13 +275,30 @@ public sealed class ControllerChannelService : IControllerChannel
         }
     }
 
-    private Uri BuildUri()
+    private Uri BuildUri(string endpoint)
     {
-        var builder = new UriBuilder(_webSocketUrl);
+        var builder = new UriBuilder(endpoint);
         var existingQuery = builder.Query.TrimStart('?');
         var pcIdParam = $"external_pc_id={Uri.EscapeDataString(_externalPcId)}";
         builder.Query = string.IsNullOrEmpty(existingQuery) ? pcIdParam : $"{existingQuery}&{pcIdParam}";
         return builder.Uri;
+    }
+
+    private static IReadOnlyList<string> ReadUrls(IConfiguration config, string primaryKey, string fallbacksKey)
+    {
+        var urls = new List<string>();
+        AddUrl(urls, config[primaryKey]);
+        foreach (var child in config.GetSection(fallbacksKey).GetChildren())
+            AddUrl(urls, child.Value);
+        foreach (var value in (config[fallbacksKey] ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            AddUrl(urls, value);
+        return urls;
+    }
+
+    private static void AddUrl(ICollection<string> urls, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value) && !urls.Contains(value.Trim(), StringComparer.OrdinalIgnoreCase))
+            urls.Add(value.Trim());
     }
 
     private static TimeSpan ComputeBackoffDelay(int attempt)

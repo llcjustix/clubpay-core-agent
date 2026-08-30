@@ -22,7 +22,7 @@ public sealed class AgentService : IAgentService
     public event Action? StaticPaymentQrUrlChanged;
     public event Action? BootstrapChanged;
 
-    private readonly string _bootstrapUrl;
+    private readonly IReadOnlyList<string> _bootstrapUrls;
     private readonly string _agentToken;
     private readonly ILogger<AgentService> _logger;
 
@@ -44,56 +44,62 @@ public sealed class AgentService : IAgentService
             externalPcId = PcId.ToLowerInvariant();
         }
         ExternalPcId = externalPcId;
-        _bootstrapUrl = config["Controller:BootstrapUrl"] ?? string.Empty;
+        _bootstrapUrls = ReadUrls(config, "Controller:BootstrapUrl", "Controller:FallbackBootstrapUrls");
         _agentToken = config["Controller:AgentToken"] ?? string.Empty;
         StaticPaymentQrUrl = config["Qr:StaticQrUrl"];
     }
 
     public async Task RefreshStaticPaymentQrUrlAsync(CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(_bootstrapUrl))
+        if (_bootstrapUrls.Count == 0)
         {
             _logger.LogWarning("Controller:BootstrapUrl is not configured; using the local static QR fallback if present");
             return;
         }
 
-        try
+        foreach (var endpoint in _bootstrapUrls)
         {
-            var bootstrapUri = BuildBootstrapUri();
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            using var request = new HttpRequestMessage(HttpMethod.Get, bootstrapUri);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _agentToken);
-            using var response = await client.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
-
-            await using var stream = await response.Content.ReadAsStreamAsync(ct);
-            using var payload = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-            if (!payload.RootElement.TryGetProperty("qr_url", out var qrUrlProperty) ||
-                string.IsNullOrWhiteSpace(qrUrlProperty.GetString()))
+            try
             {
-                throw new InvalidOperationException("Core bootstrap response does not contain qr_url");
+                var bootstrapUri = BuildBootstrapUri(endpoint);
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                using var request = new HttpRequestMessage(HttpMethod.Get, bootstrapUri);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _agentToken);
+                using var response = await client.SendAsync(request, ct);
+                response.EnsureSuccessStatusCode();
+
+                await using var stream = await response.Content.ReadAsStreamAsync(ct);
+                using var payload = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+                if (!payload.RootElement.TryGetProperty("qr_url", out var qrUrlProperty) ||
+                    string.IsNullOrWhiteSpace(qrUrlProperty.GetString()))
+                {
+                    throw new InvalidOperationException("Core bootstrap response does not contain qr_url");
+                }
+
+                var qrUrl = qrUrlProperty.GetString()!;
+                if (!Uri.TryCreate(qrUrl, UriKind.Absolute, out _))
+                    throw new InvalidOperationException("Core bootstrap returned an invalid qr_url");
+
+                var bootstrapChanged = ApplyBootstrapIdentity(payload.RootElement);
+                if (!string.Equals(StaticPaymentQrUrl, qrUrl, StringComparison.Ordinal))
+                {
+                    StaticPaymentQrUrl = qrUrl;
+                    StaticPaymentQrUrlChanged?.Invoke();
+                }
+                if (bootstrapChanged)
+                    BootstrapChanged?.Invoke();
+
+                _logger.LogInformation("Static payment QR loaded from {Endpoint} for {ExternalPcId}", endpoint, ExternalPcId);
+                return;
             }
-
-            var qrUrl = qrUrlProperty.GetString()!;
-            if (!Uri.TryCreate(qrUrl, UriKind.Absolute, out _))
-                throw new InvalidOperationException("Core bootstrap returned an invalid qr_url");
-
-            var bootstrapChanged = ApplyBootstrapIdentity(payload.RootElement);
-            if (!string.Equals(StaticPaymentQrUrl, qrUrl, StringComparison.Ordinal))
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+            catch (Exception ex)
             {
-                StaticPaymentQrUrl = qrUrl;
-                StaticPaymentQrUrlChanged?.Invoke();
+                _logger.LogWarning(ex, "Controller bootstrap endpoint {Endpoint} is unavailable", endpoint);
             }
-            if (bootstrapChanged)
-                BootstrapChanged?.Invoke();
+        }
 
-            _logger.LogInformation("Static payment QR loaded from Core bootstrap for {ExternalPcId}", ExternalPcId);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not load static payment QR from Core bootstrap for {ExternalPcId}; retaining fallback if configured", ExternalPcId);
-        }
+        _logger.LogWarning("Could not load static payment QR from any Controller endpoint for {ExternalPcId}; retaining fallback if configured", ExternalPcId);
     }
 
     private bool ApplyBootstrapIdentity(JsonElement payload)
@@ -134,13 +140,30 @@ public sealed class AgentService : IAgentService
             ? value.GetString()?.Trim()
             : null;
 
-    private Uri BuildBootstrapUri()
+    private Uri BuildBootstrapUri(string endpoint)
     {
-        var builder = new UriBuilder(_bootstrapUrl);
+        var builder = new UriBuilder(endpoint);
         var existingQuery = builder.Query.TrimStart('?');
         var pcIdQuery = $"external_pc_id={Uri.EscapeDataString(ExternalPcId)}";
         builder.Query = string.IsNullOrEmpty(existingQuery) ? pcIdQuery : $"{existingQuery}&{pcIdQuery}";
         return builder.Uri;
+    }
+
+    private static IReadOnlyList<string> ReadUrls(IConfiguration config, string primaryKey, string fallbacksKey)
+    {
+        var urls = new List<string>();
+        AddUrl(urls, config[primaryKey]);
+        foreach (var child in config.GetSection(fallbacksKey).GetChildren())
+            AddUrl(urls, child.Value);
+        foreach (var value in (config[fallbacksKey] ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            AddUrl(urls, value);
+        return urls;
+    }
+
+    private static void AddUrl(ICollection<string> urls, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value) && !urls.Contains(value.Trim(), StringComparer.OrdinalIgnoreCase))
+            urls.Add(value.Trim());
     }
 
     public Task SleepAsync(CancellationToken ct = default)
