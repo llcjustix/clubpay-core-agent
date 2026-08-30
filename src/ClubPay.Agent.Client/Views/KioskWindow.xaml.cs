@@ -19,6 +19,7 @@ public partial class KioskWindow : Window
         _maintenanceExitEnabled = configuration.GetValue("Agent:MaintenanceExitEnabled", false);
         _windowsShell = windowsShell;
         InitializeComponent();
+        StateChanged += KioskWindow_StateChanged;
 
         Vm.PropertyChanged += (_, e) =>
         {
@@ -53,6 +54,19 @@ public partial class KioskWindow : Window
         }
 
         base.OnPreviewKeyDown(e);
+    }
+
+    private async void KioskWindow_StateChanged(object? sender, EventArgs e)
+    {
+        if (!_maintenanceExitEnabled || WindowState != WindowState.Minimized)
+            return;
+
+        // The taskbar is an Explorer-owned window. On some Windows/VM builds a
+        // synchronous ShowWindow call is overwritten while WPF completes its
+        // minimize transition, so restore once more after that transition.
+        _windowsShell.RestoreTaskbars();
+        await Task.Delay(150);
+        _windowsShell.RestoreTaskbars();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)

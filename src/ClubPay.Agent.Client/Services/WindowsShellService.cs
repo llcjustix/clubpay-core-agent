@@ -19,6 +19,7 @@ public sealed class WindowsShellService : IWindowsShellService
 {
     private const int SwHide = 0;
     private const int SwShow = 5;
+    private const int SwRestore = 9;
 
     private readonly bool _enabled;
     private readonly HashSet<nint> _hiddenTaskbars = [];
@@ -53,10 +54,16 @@ public sealed class WindowsShellService : IWindowsShellService
         // handles remembered by this process: the shell must always be
         // restored when leaving kiosk mode.
         foreach (var taskbar in FindTaskbars())
+        {
+            NativeShell.ShowWindow(taskbar, SwRestore);
             NativeShell.ShowWindow(taskbar, SwShow);
+        }
 
         foreach (var taskbar in _hiddenTaskbars)
+        {
+            NativeShell.ShowWindow(taskbar, SwRestore);
             NativeShell.ShowWindow(taskbar, SwShow);
+        }
 
         _hiddenTaskbars.Clear();
     }
