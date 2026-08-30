@@ -19,9 +19,9 @@ jobs:
       - name: Build Agent
         run: dotnet build src/ClubPay.Agent.Client/ClubPay.Agent.Client.csproj --configuration Release --no-restore
       - name: Publish game PC Agent
-        run: dotnet publish src/ClubPay.Agent.Client/ClubPay.Agent.Client.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output dist/ClubPay-Agent
+        run: dotnet publish src/ClubPay.Agent.Client/ClubPay.Agent.Client.csproj --configuration Release --runtime win-x64 --self-contained true --output dist/ClubPay-Agent
       - name: Publish Manager Client
-        run: dotnet publish src/ClubPay.Agent.Admin/ClubPay.Agent.Admin.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output dist/ClubPay-Manager
+        run: dotnet publish src/ClubPay.Agent.Admin/ClubPay.Agent.Admin.csproj --configuration Release --runtime win-x64 --self-contained true --output dist/ClubPay-Manager
       - name: Package Windows clients
         shell: pwsh
         run: |
