@@ -17,6 +17,10 @@
 4. Запустите `ClubPay.Agent.Admin.exe` и войдите теми же данными, что в
    [web-админке](https://clubpay.justix.uz/admin).
 
+Скопируйте `appsettings.Local.example.json` в `appsettings.Local.json` и замените
+`192.168.1.10` на IP основного Controller на сервере клуба. Порядок адресов важен:
+сначала сервер клуба, затем `127.0.0.1` — собственный Controller менеджерского ПК.
+
 Microsoft Edge WebView2 Runtime обычно уже есть в Windows 10/11. Если EXE покажет сообщение о его
 отсутствии, установите runtime по ссылке из этого сообщения и повторите запуск.
 
