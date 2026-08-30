@@ -24,11 +24,38 @@ jobs:
         shell: pwsh
         run: |
           Compress-Archive -Path dist/ClubPay-Agent/* -DestinationPath dist/ClubPay-Agent-win-x64.zip
-          Compress-Archive -Path dist/ClubPay-Manager/* -DestinationPath dist/ClubPay-Manager-win-x64.zip
+          # One manager installation contains both the desktop UI and its local
+          # fallback Controller. The Controller release is intentionally pulled
+          # as a public, immutable artifact rather than duplicating its Go code.
+          $controllerUrl = 'https://github.com/llcjustix/clubpay-platform/releases/download/controller-v0.2.0/ClubPay-Controller-win-x64.zip'
+          Invoke-WebRequest -Uri $controllerUrl -OutFile dist/controller.zip
+          Expand-Archive -Path dist/controller.zip -DestinationPath dist/controller-unpacked
+          New-Item -ItemType Directory -Force -Path dist/ClubPay-Manager-Desktop | Out-Null
+          Copy-Item -Path dist/ClubPay-Manager/* -Destination dist/ClubPay-Manager-Desktop -Recurse
+          Move-Item -Path dist/controller-unpacked/ClubPay-Controller -Destination dist/ClubPay-Manager-Desktop/Controller
+          @'
+          @echo off
+          setlocal EnableExtensions
+          cd /d "%~dp0"
+
+          net session >nul 2>&1
+          if not "%errorlevel%"=="0" (
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+            exit /b
+          )
+
+          rem Install the local fallback first, then open the manager UI.
+          rem Controller\install-windows.cmd asks for the one-time Manager
+          rem Controller code from ClubPay Web Admin.
+          call "%~dp0Controller\install-windows.cmd"
+          if errorlevel 1 exit /b 1
+          start "" "%~dp0ClubPay.Agent.Admin.exe"
+          '@ | Set-Content -Path dist/ClubPay-Manager-Desktop/install-manager.cmd -Encoding ascii
+          Compress-Archive -Path dist/ClubPay-Manager-Desktop/* -DestinationPath dist/ClubPay-Manager-Desktop-win-x64.zip
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
             dist/ClubPay-Agent-win-x64.zip
-            dist/ClubPay-Manager-win-x64.zip
+            dist/ClubPay-Manager-Desktop-win-x64.zip
