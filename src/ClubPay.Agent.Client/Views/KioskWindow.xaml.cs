@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Extensions.Configuration;
+using ClubPay.Agent.Client.Services;
 using ClubPay.Agent.Client.ViewModels;
 
 namespace ClubPay.Agent.Client.Views;
@@ -10,11 +11,13 @@ public partial class KioskWindow : Window
 {
     private MainViewModel Vm => (MainViewModel)DataContext;
     private readonly bool _maintenanceExitEnabled;
+    private readonly IWindowsShellService _windowsShell;
 
-    public KioskWindow(MainViewModel vm, IConfiguration configuration)
+    public KioskWindow(MainViewModel vm, IConfiguration configuration, IWindowsShellService windowsShell)
     {
         DataContext = vm;
         _maintenanceExitEnabled = configuration.GetValue("Agent:MaintenanceExitEnabled", false);
+        _windowsShell = windowsShell;
         InitializeComponent();
 
         Vm.PropertyChanged += (_, e) =>
@@ -44,6 +47,7 @@ public partial class KioskWindow : Window
         {
             e.Handled = true;
             Topmost = false;
+            _windowsShell.RestoreTaskbars();
             WindowState = WindowState.Minimized;
             return;
         }
@@ -64,6 +68,7 @@ public partial class KioskWindow : Window
             // empty kiosk background would cover it. Render the launcher first, then
             // hide this window completely for the active-session lifetime.
             Topmost = false;
+            _windowsShell.HideTaskbars();
             GameLauncherWindow.Instance?.ShowLauncherSurface();
             PlayerDockWindow.Instance?.ShowDock();
             Dispatcher.BeginInvoke(() =>
@@ -78,9 +83,11 @@ public partial class KioskWindow : Window
             GameLauncherWindow.Instance?.Hide();
             PlayerDockWindow.Instance?.Hide();
             Topmost = true;
+            WindowState = WindowState.Normal;
             Show();
             Activate();
             Focus();
+            _windowsShell.HideTaskbars();
         }
     }
 }
