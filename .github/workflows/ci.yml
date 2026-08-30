@@ -18,3 +18,19 @@ jobs:
         run: dotnet test ClubPay.Agent.slnx --configuration Release --no-restore
       - name: Build Agent
         run: dotnet build src/ClubPay.Agent.Client/ClubPay.Agent.Client.csproj --configuration Release --no-restore
+      - name: Publish game PC Agent
+        run: dotnet publish src/ClubPay.Agent.Client/ClubPay.Agent.Client.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output dist/ClubPay-Agent
+      - name: Publish Manager Client
+        run: dotnet publish src/ClubPay.Agent.Admin/ClubPay.Agent.Admin.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output dist/ClubPay-Manager
+      - name: Package Windows clients
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/ClubPay-Agent/* -DestinationPath dist/ClubPay-Agent-win-x64.zip
+          Compress-Archive -Path dist/ClubPay-Manager/* -DestinationPath dist/ClubPay-Manager-win-x64.zip
+      - name: Upload Windows client packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: clubpay-windows-clients
+          path: |
+            dist/ClubPay-Agent-win-x64.zip
+            dist/ClubPay-Manager-win-x64.zip

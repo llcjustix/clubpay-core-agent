@@ -1,234 +1,40 @@
 <Window x:Class="ClubPay.Agent.Admin.Views.AdminWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:controls="clr-namespace:ClubPay.Agent.Admin.Controls"
-        xmlns:views="clr-namespace:ClubPay.Agent.Admin.Views"
-        xmlns:cv="clr-namespace:ClubPay.Agent.Admin.Converters"
-        Title="ClubPay Admin" Background="{StaticResource BgGradient}"
-        WindowState="Maximized" WindowStyle="None" ResizeMode="NoResize">
-
-  <Window.Resources>
-    <cv:BoolToVisibilityConverter            x:Key="BoolVis"/>
-    <cv:InverseBoolToVisibilityConverter     x:Key="InvBoolVis"/>
-    <cv:PcStatusToBrushConverter             x:Key="StatusBrush"/>
-  </Window.Resources>
-
-  <Grid>
-    <!-- Grid line overlay -->
-    <Rectangle Opacity="0.012" IsHitTestVisible="False">
-      <Rectangle.Fill>
-        <DrawingBrush TileMode="Tile" Viewport="0,0,47,47" ViewportUnits="Absolute">
-          <DrawingBrush.Drawing>
-            <DrawingGroup>
-              <GeometryDrawing>
-                <GeometryDrawing.Pen><Pen Brush="White" Thickness="1"/></GeometryDrawing.Pen>
-                <GeometryDrawing.Geometry>
-                  <GeometryGroup>
-                    <LineGeometry StartPoint="47,0" EndPoint="47,47"/>
-                    <LineGeometry StartPoint="0,47" EndPoint="47,47"/>
-                  </GeometryGroup>
-                </GeometryDrawing.Geometry>
-              </GeometryDrawing>
-            </DrawingGroup>
-          </DrawingBrush.Drawing>
-        </DrawingBrush>
-      </Rectangle.Fill>
-    </Rectangle>
-
-    <!-- MAIN LAYOUT -->
-    <Grid Margin="24,20,24,22">
-      <Grid.RowDefinitions>
-        <RowDefinition Height="Auto"/>
-        <RowDefinition Height="Auto"/>
-        <RowDefinition Height="*"/>
-      </Grid.RowDefinitions>
-
-      <!-- TOP BAR -->
-      <Grid Grid.Row="0">
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="ClubPay Manager"
+        Width="1440" Height="920" MinWidth="1024" MinHeight="720"
+        WindowStartupLocation="CenterScreen" Background="#07101c">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="#0d1a2a" BorderBrush="#1c3c50" BorderThickness="0,0,0,1" Padding="18,12">
+      <Grid>
         <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-
-        <!-- Logo + Title -->
-        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-          <Path Data="M20,0 L40,11.5 L40,34.5 L20,46 L0,34.5 L0,11.5 Z"
-                Fill="{StaticResource LogoGradient}" Width="40" Height="46" Margin="0,0,14,0"/>
-          <StackPanel VerticalAlignment="Center">
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="NEXUS ARENA " Foreground="White"
-                         FontFamily="{StaticResource FontChakra}" FontSize="26" FontWeight="Bold"/>
-              <TextBlock Text="ADMIN" Foreground="{StaticResource GreenBrush}"
-                         FontFamily="{StaticResource FontChakra}" FontSize="18" FontWeight="Bold"
-                         VerticalAlignment="Bottom" Margin="0,0,0,4"/>
-            </StackPanel>
-            <TextBlock Text="CLUB MANAGEMENT" Foreground="{StaticResource TextMuted}"
-                       FontFamily="{StaticResource FontMono}" FontSize="13"/>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock Text="◆" Foreground="#11d8d0" FontSize="25" Margin="0,0,10,0" />
+          <StackPanel>
+            <TextBlock Text="ClubPay Manager" Foreground="#f5fbff" FontWeight="SemiBold" FontSize="17" />
+            <TextBlock Text="Управление залом, оплатами и настройками" Foreground="#8da5bb" FontSize="12" />
           </StackPanel>
         </StackPanel>
-
-        <!-- Controller status (center) -->
-        <Border Grid.Column="1" CornerRadius="999" BorderThickness="1"
-                Padding="16,8" VerticalAlignment="Center"
-                Background="#14FFFFFF" BorderBrush="#2200FF88">
-          <StackPanel Orientation="Horizontal">
-            <Ellipse Width="10" Height="10" Fill="{StaticResource GreenBrush}" Margin="0,0,10,0"
-                     VerticalAlignment="Center">
-              <Ellipse.Effect>
-                <DropShadowEffect Color="#FF00FF88" BlurRadius="10" ShadowDepth="0"/>
-              </Ellipse.Effect>
-            </Ellipse>
-            <TextBlock Foreground="#FFBDF5D8" FontFamily="{StaticResource FontMono}"
-                       FontSize="14">
-              <Run Text="Kontroller: "/>
-              <Run Text="{Binding ControllerStatus, Mode=OneWay}"/>
-            </TextBlock>
-          </StackPanel>
-        </Border>
-
-        <!-- Time + Admin -->
-        <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right"
-                    VerticalAlignment="Center">
-          <TextBlock Text="{Binding CurrentTime}" Foreground="{StaticResource TextSecondary}"
-                     FontFamily="{StaticResource FontMono}" FontSize="20" FontWeight="Medium"
-                     VerticalAlignment="Center" Margin="0,0,18,0"/>
-          <Border CornerRadius="999" Padding="7,7,18,7" VerticalAlignment="Center"
-                  Background="#0DFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1">
-            <StackPanel Orientation="Horizontal">
-              <Border Width="30" Height="30" CornerRadius="15" Margin="0,0,8,0">
-                <Border.Background>
-                  <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#FF00D4FF" Offset="0"/>
-                    <GradientStop Color="#FF00FF88" Offset="1"/>
-                  </LinearGradientBrush>
-                </Border.Background>
-                <TextBlock Text="{Binding AdminName, Converter={x:Static cv:FirstCharConverter.Instance}}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Foreground="#04222B" FontFamily="{StaticResource FontChakra}"
-                           FontSize="14" FontWeight="Bold"/>
-              </Border>
-              <TextBlock Text="{Binding AdminName}" Foreground="White"
-                         FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="SemiBold"
-                         VerticalAlignment="Center"/>
-            </StackPanel>
-          </Border>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock x:Name="ConnectionStatus" Text="Загрузка панели…" Foreground="#8da5bb" VerticalAlignment="Center" Margin="0,0,14,0" />
+          <Button Content="Обновить" Padding="14,7" Margin="0,0,8,0" Click="Reload_Click" />
+          <Button Content="Открыть в браузере" Padding="14,7" Click="OpenBrowser_Click" />
         </StackPanel>
       </Grid>
-
-      <!-- SUMMARY + ZONE TABS -->
-      <Grid Grid.Row="1" Margin="0,18,0,14">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-
-        <!-- Status pills -->
-        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-          <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
-            <Ellipse Width="10" Height="10" Fill="{StaticResource GreenBrush}" VerticalAlignment="Center" Margin="0,0,8,0">
-              <Ellipse.Effect><DropShadowEffect Color="#FF00FF88" BlurRadius="8" ShadowDepth="0"/></Ellipse.Effect>
-            </Ellipse>
-            <TextBlock Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium">
-              <Run Text="{Binding ActiveCount, Mode=OneWay}"/><Run Text=" " Foreground="{StaticResource TextMuted}"/><Run Text="aktiv" Foreground="{StaticResource TextMuted}" FontWeight="Normal"/>
-            </TextBlock>
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
-            <Ellipse Width="10" Height="10" Fill="{StaticResource RedBrush}" VerticalAlignment="Center" Margin="0,0,8,0">
-              <Ellipse.Effect><DropShadowEffect Color="#FFFF3B5C" BlurRadius="8" ShadowDepth="0"/></Ellipse.Effect>
-            </Ellipse>
-            <TextBlock Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium">
-              <Run Text="{Binding FrozenCount, Mode=OneWay}"/><Run Text=" muzlatilgan" Foreground="{StaticResource TextMuted}" FontWeight="Normal"/>
-            </TextBlock>
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
-            <Ellipse Width="10" Height="10" Fill="{StaticResource CyanBrush}" VerticalAlignment="Center" Margin="0,0,8,0">
-              <Ellipse.Effect><DropShadowEffect Color="#FF00D4FF" BlurRadius="8" ShadowDepth="0"/></Ellipse.Effect>
-            </Ellipse>
-            <TextBlock Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium">
-              <Run Text="{Binding FreeCount, Mode=OneWay}"/><Run Text=" bo'sh" Foreground="{StaticResource TextMuted}" FontWeight="Normal"/>
-            </TextBlock>
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
-            <Ellipse Width="10" Height="10" Fill="{StaticResource TextDimmed}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <TextBlock Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium">
-              <Run Text="{Binding SleepCount, Mode=OneWay}"/><Run Text=" uxlayapti" Foreground="{StaticResource TextMuted}" FontWeight="Normal"/>
-            </TextBlock>
-          </StackPanel>
-          <StackPanel Orientation="Horizontal">
-            <Ellipse Width="10" Height="10" Fill="{StaticResource YellowBrush}" VerticalAlignment="Center" Margin="0,0,8,0">
-              <Ellipse.Effect><DropShadowEffect Color="#FFFFD60A" BlurRadius="8" ShadowDepth="0"/></Ellipse.Effect>
-            </Ellipse>
-            <TextBlock Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Medium">
-              <Run Text="{Binding AttentionCount, Mode=OneWay}"/><Run Text=" diqqat" Foreground="{StaticResource TextMuted}" FontWeight="Normal"/>
-            </TextBlock>
-          </StackPanel>
+    </Border>
+    <Grid>
+      <wv2:WebView2 x:Name="ManagerWebView" NavigationCompleted="ManagerWebView_NavigationCompleted" />
+      <Border x:Name="UnavailableOverlay" Background="#07101c" Visibility="Collapsed">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="520">
+          <TextBlock Text="Не удалось открыть ClubPay" Foreground="White" FontSize="26" FontWeight="SemiBold" TextAlignment="Center" />
+          <TextBlock x:Name="UnavailableMessage" Foreground="#a8b8c9" FontSize="15" TextWrapping="Wrap" TextAlignment="Center" Margin="0,14,0,22" />
+          <Button Content="Открыть админку в браузере" Padding="18,10" HorizontalAlignment="Center" Click="OpenBrowser_Click" />
         </StackPanel>
-
-        <!-- Zone tabs -->
-        <StackPanel Grid.Column="1" Orientation="Horizontal">
-          <Border Style="{StaticResource ZoneTabActive}" Margin="0,0,10,0"
-                  MouseLeftButtonUp="OnZoneFilter" Tag="Hammasi">
-            <TextBlock Text="Hammasi" Foreground="#04222B"
-                       FontFamily="{StaticResource FontChakra}" FontSize="14" FontWeight="SemiBold"/>
-          </Border>
-          <Border Style="{StaticResource ZoneTab}" Margin="0,0,10,0"
-                  MouseLeftButtonUp="OnZoneFilter" Tag="Standart">
-            <TextBlock Text="Standart" Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="14" FontWeight="Medium"/>
-          </Border>
-          <Border Style="{StaticResource ZoneTab}" Margin="0,0,10,0"
-                  MouseLeftButtonUp="OnZoneFilter" Tag="Pro">
-            <TextBlock Text="Pro" Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="14" FontWeight="Medium"/>
-          </Border>
-          <Border Style="{StaticResource ZoneTab}" MouseLeftButtonUp="OnZoneFilter" Tag="VIP">
-            <TextBlock Text="VIP" Foreground="{StaticResource TextSecondary}"
-                       FontFamily="{StaticResource FontChakra}" FontSize="14" FontWeight="Medium"/>
-          </Border>
-        </StackPanel>
-      </Grid>
-
-      <!-- PC GRID + DETAIL PANEL -->
-      <Grid Grid.Row="2">
-        <!-- PC Grid (ItemsControl with UniformGrid) -->
-        <ItemsControl ItemsSource="{Binding Pcs}" ScrollViewer.VerticalScrollBarVisibility="Disabled">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <UniformGrid Columns="5" Rows="4"/>
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <controls:PcCardControl DataContext="{Binding}" Margin="7"
-                                      PcSelected="OnPcSelected"/>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-
-
-        <!-- Dimming scrim when panel open -->
-        <Grid Background="#80000000"
-              Visibility="{Binding IsPcDetailVisible, Converter={StaticResource BoolVis}}"
-              IsHitTestVisible="False"/>
-
-        <!-- Detail panel (right side) -->
-        <controls:PcDetailPanel DataContext="{Binding}"
-                                HorizontalAlignment="Right"
-                                Visibility="{Binding IsPcDetailVisible, Converter={StaticResource BoolVis}}"/>
-
-        <!-- Cash Payment modal -->
-        <Grid Background="#CC060811"
-              Visibility="{Binding IsCashPaymentVisible, Converter={StaticResource BoolVis}}">
-          <views:CashPaymentDialog DataContext="{Binding}"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-        </Grid>
-      </Grid>
+      </Border>
     </Grid>
-  </Grid>
+  </DockPanel>
 </Window>
