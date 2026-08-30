@@ -36,6 +36,18 @@ public partial class KioskWindow : Window
             return;
         }
 
+        // Lets an administrator access a local Controller on the same PC during
+        // commissioning without terminating the Agent or dropping its WebSocket.
+        // A session state change restores the customer UI automatically.
+        if (_maintenanceExitEnabled && e.Key == Key.F11 &&
+            Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            e.Handled = true;
+            Topmost = false;
+            WindowState = WindowState.Minimized;
+            return;
+        }
+
         base.OnPreviewKeyDown(e);
     }
 
