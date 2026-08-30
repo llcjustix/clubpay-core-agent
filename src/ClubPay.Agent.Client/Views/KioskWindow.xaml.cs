@@ -48,7 +48,7 @@ public partial class KioskWindow : Window
         {
             e.Handled = true;
             Topmost = false;
-            _windowsShell.RestoreTaskbars();
+            _windowsShell.EnterMaintenanceMode();
             WindowState = WindowState.Minimized;
             return;
         }
@@ -82,7 +82,7 @@ public partial class KioskWindow : Window
             // empty kiosk background would cover it. Render the launcher first, then
             // hide this window completely for the active-session lifetime.
             Topmost = false;
-            _windowsShell.HideTaskbars();
+            _windowsShell.ExitMaintenanceMode();
             GameLauncherWindow.Instance?.ShowLauncherSurface();
             PlayerDockWindow.Instance?.ShowDock();
             Dispatcher.BeginInvoke(() =>
@@ -101,7 +101,7 @@ public partial class KioskWindow : Window
             Show();
             Activate();
             Focus();
-            _windowsShell.HideTaskbars();
+            _windowsShell.ExitMaintenanceMode();
         }
     }
 }

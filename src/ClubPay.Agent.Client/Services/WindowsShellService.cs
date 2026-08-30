@@ -13,6 +13,8 @@ public interface IWindowsShellService
 {
     void HideTaskbars();
     void RestoreTaskbars();
+    void EnterMaintenanceMode();
+    void ExitMaintenanceMode();
 }
 
 public sealed class WindowsShellService : IWindowsShellService
@@ -23,6 +25,7 @@ public sealed class WindowsShellService : IWindowsShellService
 
     private readonly bool _enabled;
     private readonly HashSet<nint> _hiddenTaskbars = [];
+    private bool _maintenanceMode;
 
     public WindowsShellService(IConfiguration configuration)
     {
@@ -34,7 +37,7 @@ public sealed class WindowsShellService : IWindowsShellService
 
     public void HideTaskbars()
     {
-        if (!_enabled)
+        if (!_enabled || _maintenanceMode)
             return;
 
         foreach (var taskbar in FindTaskbars())
@@ -66,6 +69,18 @@ public sealed class WindowsShellService : IWindowsShellService
         }
 
         _hiddenTaskbars.Clear();
+    }
+
+    public void EnterMaintenanceMode()
+    {
+        _maintenanceMode = true;
+        RestoreTaskbars();
+    }
+
+    public void ExitMaintenanceMode()
+    {
+        _maintenanceMode = false;
+        HideTaskbars();
     }
 
     private static IEnumerable<nint> FindTaskbars()
