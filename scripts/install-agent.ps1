@@ -37,9 +37,15 @@ catch {
 
 $httpScheme = if ($controllerUri.Scheme -eq 'https') { 'https' } else { 'http' }
 $webSocketScheme = if ($httpScheme -eq 'https') { 'wss' } else { 'ws' }
-$portSuffix = if ($controllerUri.IsDefaultPort) { ':8080' } else { ":$($controllerUri.Port)" }
+$controllerPort = if ($controllerUri.IsDefaultPort) { 8080 } else { $controllerUri.Port }
+$portSuffix = ":$controllerPort"
 $controllerBaseUrl = '{0}://{1}{2}' -f $httpScheme, $controllerUri.Host, $portSuffix
 $controllerWebSocketUrl = '{0}://{1}{2}/api/core/ws' -f $webSocketScheme, $controllerUri.Host, $portSuffix
+
+$controllerReachable = Test-NetConnection -ComputerName $controllerUri.Host -Port $controllerPort -InformationLevel Quiet -WarningAction SilentlyContinue
+if (-not $controllerReachable) {
+    throw "Основной Controller недоступен по $($controllerUri.Host):$controllerPort. Проверьте сеть и Windows Firewall, затем запустите установку снова."
+}
 
 $secureCoreToken = Read-Host 'CORE_TOKEN из защищённого файла controller.env' -AsSecureString
 $coreTokenPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureCoreToken)
@@ -49,8 +55,12 @@ try {
 finally {
     [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($coreTokenPointer)
 }
+# Clipboard managers and remote-desktop clients can insert invisible control
+# characters into a pasted secret. They are forbidden in HTTP headers and used
+# to produce an apparently successful installation with a permanently blank QR.
+$coreToken = (-join ($coreToken.ToCharArray() | Where-Object { -not [char]::IsControl($_) })).Trim()
 if ([string]::IsNullOrWhiteSpace($coreToken)) {
-    throw 'CORE_TOKEN обязателен.'
+    throw 'CORE_TOKEN пустой или содержит только служебные символы. Скопируйте только значение после CORE_TOKEN= из controller.env.'
 }
 
 # Pilot mode deliberately leaves a maintenance route available. Switch to the
