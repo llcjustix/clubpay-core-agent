@@ -23,7 +23,11 @@ jobs:
       - name: Package applications
         shell: pwsh
         run: |
-          Copy-Item -Path scripts/install-agent.cmd,scripts/install-agent.ps1 -Destination dist/ClubPay-Agent
+          # Windows PowerShell 5 treats a UTF-8 script without BOM as an ANSI
+          # file. Russian text then introduces quote-like bytes and the pilot
+          # installer fails to parse on clean Windows images.
+          Copy-Item -Path scripts/install-agent.cmd -Destination dist/ClubPay-Agent
+          Get-Content -Path scripts/install-agent.ps1 -Raw | Set-Content -Path dist/ClubPay-Agent/install-agent.ps1 -Encoding utf8BOM
           Compress-Archive -Path dist/ClubPay-Agent/* -DestinationPath dist/ClubPay-Agent-win-x64.zip
           # One manager installation contains both the desktop UI and its local
           # fallback Controller. The Controller release is intentionally pulled
