@@ -23,6 +23,9 @@ jobs:
       - name: Package applications
         shell: pwsh
         run: |
+          # Fail the release before packaging if the interactive installer has
+          # an invalid PowerShell expression.
+          [scriptblock]::Create((Get-Content -Path scripts/install-agent.ps1 -Raw)) | Out-Null
           # Windows PowerShell 5 treats a UTF-8 script without BOM as an ANSI
           # file. Russian text then introduces quote-like bytes and the pilot
           # installer fails to parse on clean Windows images.

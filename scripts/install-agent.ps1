@@ -38,8 +38,8 @@ catch {
 $httpScheme = if ($controllerUri.Scheme -eq 'https') { 'https' } else { 'http' }
 $webSocketScheme = if ($httpScheme -eq 'https') { 'wss' } else { 'ws' }
 $portSuffix = if ($controllerUri.IsDefaultPort) { ':8080' } else { ":$($controllerUri.Port)" }
-$controllerBaseUrl = "$httpScheme://$($controllerUri.Host)$portSuffix"
-$controllerWebSocketUrl = "$webSocketScheme://$($controllerUri.Host)$portSuffix/api/core/ws"
+$controllerBaseUrl = '{0}://{1}{2}' -f $httpScheme, $controllerUri.Host, $portSuffix
+$controllerWebSocketUrl = '{0}://{1}{2}/api/core/ws' -f $webSocketScheme, $controllerUri.Host, $portSuffix
 
 $secureCoreToken = Read-Host 'CORE_TOKEN из защищённого файла controller.env' -AsSecureString
 $coreTokenPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureCoreToken)
