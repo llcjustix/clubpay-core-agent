@@ -25,6 +25,10 @@ jobs:
       - name: Package Windows clients
         shell: pwsh
         run: |
+          [scriptblock]::Create((Get-Content -Path scripts/install-agent.ps1 -Raw)) | Out-Null
+          Copy-Item -Path scripts/install-agent.cmd -Destination dist/ClubPay-Agent
+          Get-Content -Path scripts/install-agent.ps1 -Raw | Set-Content -Path dist/ClubPay-Agent/install-agent.ps1 -Encoding utf8BOM
+          Copy-Item -Path scripts/clubpay-agent-enrollment.example.json -Destination dist/ClubPay-Agent
           Compress-Archive -Path dist/ClubPay-Agent/* -DestinationPath dist/ClubPay-Agent-win-x64.zip
           Compress-Archive -Path dist/ClubPay-Manager/* -DestinationPath dist/ClubPay-Manager-win-x64.zip
       - name: Upload Windows client packages

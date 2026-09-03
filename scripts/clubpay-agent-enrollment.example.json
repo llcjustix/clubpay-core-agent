@@ -1,0 +1,5 @@
+{
+  "external_pc_id": "pc-001",
+  "controller_url": "http://192.168.1.10:8080",
+  "core_token": "SET_ONLY_IN_A_PER_PC_PRIVATE_PACKAGE"
+}
