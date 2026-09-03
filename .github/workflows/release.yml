@@ -36,12 +36,13 @@ jobs:
           # One manager installation contains both the desktop UI and its local
           # fallback Controller. The Controller release is intentionally pulled
           # as a public, immutable artifact rather than duplicating its Go code.
-          $controllerUrl = 'https://github.com/llcjustix/clubpay-platform/releases/download/controller-v0.2.3/ClubPay-Controller-win-x64.zip'
+          $controllerUrl = 'https://github.com/llcjustix/clubpay-platform/releases/download/controller-v0.2.6/ClubPay-Controller-win-x64.zip'
           Invoke-WebRequest -Uri $controllerUrl -OutFile dist/controller.zip
           Expand-Archive -Path dist/controller.zip -DestinationPath dist/controller-unpacked
           New-Item -ItemType Directory -Force -Path dist/ClubPay-Manager-Desktop | Out-Null
           Copy-Item -Path dist/ClubPay-Manager/* -Destination dist/ClubPay-Manager-Desktop -Recurse
           Move-Item -Path dist/controller-unpacked/ClubPay-Controller -Destination dist/ClubPay-Manager-Desktop/Controller
+          Copy-Item -Path scripts/controller-enrollment.example.json -Destination dist/ClubPay-Manager-Desktop
           @'
           @echo off
           setlocal EnableExtensions
@@ -53,9 +54,11 @@ jobs:
             exit /b
           )
 
+          rem The private enrollment file is downloaded in Web Admin and placed
+          rem next to this installer. The nested Controller reads it automatically.
+          if exist "%~dp0controller-enrollment.json" copy /Y "%~dp0controller-enrollment.json" "%~dp0Controller\controller-enrollment.json" >nul
+
           rem Install the local fallback first, then open the manager UI.
-          rem Controller\install-windows.cmd asks for the one-time Manager
-          rem Controller code from ClubPay Web Admin.
           call "%~dp0Controller\install-windows.cmd"
           if errorlevel 1 exit /b 1
           start "" "%~dp0ClubPay.Agent.Admin.exe"
