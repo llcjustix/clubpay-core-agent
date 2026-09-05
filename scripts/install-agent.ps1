@@ -96,6 +96,15 @@ if ([string]::IsNullOrWhiteSpace($coreToken)) {
 # installation must authenticate against the selected Controller and receive a
 # checkout QR before any files are copied into C:\ClubPay\Agent.
 $escapedExternalPcId = [uri]::EscapeDataString($externalPcId)
+# A just-activated Controller may still be between its periodic cloud pulls.
+# Ask it for the initial snapshot now, so a one-click Agent installation never
+# races that background job and sees a false "pc not found" response.
+try {
+    Invoke-RestMethod -Method Post -Uri "$controllerBaseUrl/api/node/sync" -Headers @{ Authorization = "Bearer $coreToken" } -TimeoutSec 30 | Out-Null
+}
+catch {
+    throw "Controller не смог синхронизировать настройки клуба перед установкой $externalPcId. $($_.Exception.Message)"
+}
 try {
     $bootstrap = Invoke-RestMethod -Method Get -Uri "$controllerBaseUrl/api/core/bootstrap?external_pc_id=$escapedExternalPcId" -Headers @{ Authorization = "Bearer $coreToken" } -TimeoutSec 15
 }
