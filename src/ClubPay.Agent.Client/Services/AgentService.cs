@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using ClubPay.Agent.Core.Models;
 using ClubPay.Agent.Core.Services;
@@ -102,6 +103,62 @@ public sealed class AgentService : IAgentService
         _logger.LogWarning("Could not load static payment QR from any Controller endpoint for {ExternalPcId}; retaining fallback if configured", ExternalPcId);
     }
 
+    public async Task ReportOnlineAsync(CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(ExternalPcId) || string.IsNullOrWhiteSpace(_agentToken))
+            return;
+
+        foreach (var bootstrapEndpoint in _bootstrapUrls)
+        {
+            try
+            {
+                var endpoint = BuildEventsUri(bootstrapEndpoint);
+                var payload = JsonSerializer.Serialize(new
+                {
+                    event_id = "agent_online_" + Guid.NewGuid().ToString("N"),
+                    event_type = "agent_online",
+                    external_pc_id = ExternalPcId,
+                    occurred_at = DateTime.UtcNow,
+                    payload = new { external_pc_id = ExternalPcId, status = "available" },
+                });
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                {
+                    Content = new StringContent(payload, Encoding.UTF8, "application/json"),
+                };
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _agentToken);
+                using var response = await client.SendAsync(request, ct);
+                response.EnsureSuccessStatusCode();
+
+                // A local Controller may be between periodic cloud syncs when a
+                // newly installed kiosk comes online. Ask it to publish the
+                // accepted presence immediately so the public QR never stays
+                // falsely offline while the Agent is already running.
+                try
+                {
+                    using var syncRequest = new HttpRequestMessage(HttpMethod.Post, BuildNodeSyncUri(bootstrapEndpoint));
+                    syncRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _agentToken);
+                    using var syncResponse = await client.SendAsync(syncRequest, ct);
+                    syncResponse.EnsureSuccessStatusCode();
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+                {
+                    _logger.LogDebug(ex, "Controller did not accept an immediate cloud sync after Agent presence");
+                }
+                _logger.LogInformation("Agent online state reported to {Endpoint} for {ExternalPcId}", endpoint, ExternalPcId);
+                return;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not report Agent online state to {Endpoint}", bootstrapEndpoint);
+            }
+        }
+    }
+
     private bool ApplyBootstrapIdentity(JsonElement payload)
     {
         var changed = false;
@@ -146,6 +203,21 @@ public sealed class AgentService : IAgentService
         var existingQuery = builder.Query.TrimStart('?');
         var pcIdQuery = $"external_pc_id={Uri.EscapeDataString(ExternalPcId)}";
         builder.Query = string.IsNullOrEmpty(existingQuery) ? pcIdQuery : $"{existingQuery}&{pcIdQuery}";
+        return builder.Uri;
+    }
+
+    private static Uri BuildEventsUri(string bootstrapEndpoint)
+    {
+        var builder = new UriBuilder(bootstrapEndpoint);
+        var slash = builder.Path.LastIndexOf('/');
+        builder.Path = (slash >= 0 ? builder.Path[..slash] : string.Empty) + "/events";
+        builder.Query = string.Empty;
+        return builder.Uri;
+    }
+
+    private static Uri BuildNodeSyncUri(string bootstrapEndpoint)
+    {
+        var builder = new UriBuilder(bootstrapEndpoint) { Path = "/api/node/sync", Query = string.Empty };
         return builder.Uri;
     }
 

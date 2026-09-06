@@ -25,6 +25,11 @@ public interface IAgentService
     /// is retained if Core is temporarily unreachable.</summary>
     Task RefreshStaticPaymentQrUrlAsync(CancellationToken ct = default);
 
+    /// <summary>Reports that this installed kiosk is alive to its Controller.
+    /// This is an HTTP fallback for the initial online state; the persistent
+    /// WebSocket remains responsible for real-time commands and disconnects.</summary>
+    Task ReportOnlineAsync(CancellationToken ct = default);
+
     Task SleepAsync(CancellationToken ct = default);
 
     /// <summary>Prevents (or allows) the OS from idling the display/system to sleep on its own —

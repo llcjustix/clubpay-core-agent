@@ -89,6 +89,7 @@ public partial class App : Application
             // when the backend response eventually arrives.
             var agent = _services.GetRequiredService<IAgentService>();
             _ = agent.RefreshStaticPaymentQrUrlAsync(_startupCts.Token);
+            _ = agent.ReportOnlineAsync(_startupCts.Token);
             _ = RefreshBootstrapLoopAsync(agent, _startupCts.Token);
 
             _ = _services.GetRequiredService<GameLauncherWindow>();  // creates Instance
