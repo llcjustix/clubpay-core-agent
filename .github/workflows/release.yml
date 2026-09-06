@@ -36,7 +36,10 @@ jobs:
           # One manager installation contains both the desktop UI and its local
           # fallback Controller. The Controller release is intentionally pulled
           # as a public, immutable artifact rather than duplicating its Go code.
-          $controllerUrl = 'https://github.com/llcjustix/clubpay-platform/releases/download/controller-v0.2.12/ClubPay-Controller-win-x64.zip'
+          # Keep the Manager fallback Controller on the same release that the
+          # one-click primary setup uses. This includes the initial cloud-sync
+          # endpoint required before an Agent can bootstrap a PC.
+          $controllerUrl = 'https://github.com/llcjustix/clubpay-platform/releases/download/controller-v0.2.14/ClubPay-Controller-win-x64.zip'
           Invoke-WebRequest -Uri $controllerUrl -OutFile dist/controller.zip
           Expand-Archive -Path dist/controller.zip -DestinationPath dist/controller-unpacked
           New-Item -ItemType Directory -Force -Path dist/ClubPay-Manager-Desktop | Out-Null
