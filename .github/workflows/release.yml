@@ -39,7 +39,10 @@ jobs:
           # Keep the Manager fallback Controller on the same release that the
           # one-click primary setup uses. This includes the initial cloud-sync
           # endpoint required before an Agent can bootstrap a PC.
-          $controllerUrl = 'https://github.com/llcjustix/clubpay-platform/releases/download/controller-v0.2.19/ClubPay-Controller-win-x64.zip'
+          # The Manager keeps a read-only local cache. Bundle the current
+          # Controller so a Manager can never publish stale PC presence back
+          # over the primary Controller's live status.
+          $controllerUrl = 'https://github.com/llcjustix/clubpay-platform/releases/download/controller-v0.2.22/ClubPay-Controller-win-x64.zip'
           Invoke-WebRequest -Uri $controllerUrl -OutFile dist/controller.zip
           Expand-Archive -Path dist/controller.zip -DestinationPath dist/controller-unpacked
           New-Item -ItemType Directory -Force -Path dist/ClubPay-Manager-Desktop | Out-Null
