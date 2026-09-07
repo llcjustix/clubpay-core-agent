@@ -1,3 +1,7 @@
+param(
+    [switch]$NoPrompt
+)
+
 $ErrorActionPreference = 'Stop'
 
 $bundleDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -22,7 +26,14 @@ Write-Host 'Updating ClubPay Agent…' -ForegroundColor Cyan
 # are replaced; the updater must never turn a configured kiosk into an
 # unbound Agent.
 $configBackup = Join-Path $env:TEMP ('clubpay-agent-config-' + [guid]::NewGuid().ToString() + '.json')
+$programBackup = Join-Path $env:TEMP ('clubpay-agent-program-' + [guid]::NewGuid().ToString())
 Copy-Item -Path $installedConfig -Destination $configBackup -Force
+New-Item -ItemType Directory -Path $programBackup -Force | Out-Null
+Get-ChildItem -Path $installDirectory -Force | Where-Object {
+    $_.Name -ne 'appsettings.Local.json'
+} | ForEach-Object {
+    Copy-Item -Path $_.FullName -Destination $programBackup -Recurse -Force
+}
 try {
     Get-Process -Name 'ClubPay.Agent.Client' -ErrorAction SilentlyContinue | Stop-Process -Force
     Start-Sleep -Seconds 1
@@ -33,8 +44,22 @@ try {
     Start-Process -FilePath $installedExecutable
     Write-Host 'ClubPay Agent updated and started.' -ForegroundColor Green
 }
+catch {
+    $updateError = $_
+    Write-Host 'Agent update failed; restoring the previous build…' -ForegroundColor Yellow
+    Get-Process -Name 'ClubPay.Agent.Client' -ErrorAction SilentlyContinue | Stop-Process -Force
+    Get-ChildItem -Path $programBackup -Force | ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination $installDirectory -Recurse -Force
+    }
+    Copy-Item -Path $configBackup -Destination $installedConfig -Force
+    Start-Process -FilePath $installedExecutable -ErrorAction SilentlyContinue
+    throw $updateError
+}
 finally {
     Remove-Item -Path $configBackup -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $programBackup -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Read-Host 'Press Enter to close'
+if (-not $NoPrompt) {
+    Read-Host 'Press Enter to close'
+}

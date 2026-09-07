@@ -18,3 +18,6 @@ public sealed record SetRepairPayload(string ExternalPcId, bool On);
 
 /// <summary>Contract §4.7 get_status payload.</summary>
 public sealed record GetStatusPayload(string ExternalPcId);
+
+/// <summary>Authenticated Controller → free Agent update request.</summary>
+public sealed record AgentUpdatePayload(string Version, string DownloadUrl, string ChecksumUrl);

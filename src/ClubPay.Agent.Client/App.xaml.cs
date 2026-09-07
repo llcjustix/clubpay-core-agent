@@ -59,6 +59,7 @@ public partial class App : Application
             sc.AddSingleton<SteamGameDiscoveryService>();
             sc.AddSingleton<IClientSessionEndService, ClientSessionEndService>();
             sc.AddSingleton<ISessionCoordinator, SessionCoordinatorService>();
+            sc.AddSingleton<IAgentUpdateService, AgentUpdateService>();
             sc.AddSingleton<ICommandDispatcher, CommandDispatcherService>();
             sc.AddSingleton<IControllerChannel, ControllerChannelService>();
             sc.AddSingleton<QrCodeService>();

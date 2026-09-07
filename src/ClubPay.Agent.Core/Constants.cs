@@ -70,6 +70,7 @@ public static class Constants
             public const string Sleep = "sleep";
             public const string SetRepair = "set_repair";
             public const string GetStatus = "get_status";
+            public const string UpdateAgent = "update_agent";
             public const string ApplyConfig = "apply_config"; // deferred — payment/tariff config, not handled
         }
 

@@ -16,6 +16,7 @@ namespace ClubPay.Agent.Client.Services;
 /// </summary>
 public sealed class CommandDispatcherService(
     ISessionCoordinator coordinator,
+    IAgentUpdateService updater,
     ILogger<CommandDispatcherService> logger) : ICommandDispatcher
 {
     public async Task<CommandResultEnvelope> DispatchAsync(CommandEnvelope command, CancellationToken ct = default)
@@ -33,6 +34,7 @@ public sealed class CommandDispatcherService(
                 Constants.ControllerChannel.CommandName.Sleep => await HandleSleepAsync(command, ct),
                 Constants.ControllerChannel.CommandName.SetRepair => await HandleSetRepairAsync(command, ct),
                 Constants.ControllerChannel.CommandName.GetStatus => HandleGetStatus(command),
+                Constants.ControllerChannel.CommandName.UpdateAgent => HandleUpdateAgent(command),
                 Constants.ControllerChannel.CommandName.ApplyConfig =>
                     Error(command, ErrorCode.InvalidState, "apply_config is not supported in this phase"),
                 _ => Error(command, ErrorCode.InvalidState, $"unknown command '{command.Name}'"),
@@ -106,6 +108,17 @@ public sealed class CommandDispatcherService(
     private CommandResultEnvelope HandleGetStatus(CommandEnvelope command)
     {
         var result = coordinator.GetStatus();
+        return Ok(command, result);
+    }
+
+    private CommandResultEnvelope HandleUpdateAgent(CommandEnvelope command)
+    {
+        var status = coordinator.GetStatus();
+        if (status.PcState is PcState.Occupied or PcState.Frozen)
+            return Error(command, ErrorCode.PcBusy, "Agent update waits until the current session ends");
+
+        var payload = Deserialize<AgentUpdatePayload>(command);
+        var result = updater.Schedule(payload);
         return Ok(command, result);
     }
 
