@@ -50,7 +50,7 @@ jobs:
           # The Manager keeps a read-only local cache. Bundle the current
           # Controller so a Manager can never publish stale PC presence back
           # over the primary Controller's live status.
-          $controllerUrl = 'https://github.com/llcjustix/clubpay-platform/releases/download/controller-v0.2.26/ClubPay-Controller-win-x64.zip'
+          $controllerUrl = 'https://github.com/llcjustix/clubpay-platform/releases/download/controller-v0.2.27/ClubPay-Controller-win-x64.zip'
           Invoke-WebRequest -Uri $controllerUrl -OutFile dist/controller.zip
           Expand-Archive -Path dist/controller.zip -DestinationPath dist/controller-unpacked
           New-Item -ItemType Directory -Force -Path dist/ClubPay-Manager-Desktop | Out-Null
