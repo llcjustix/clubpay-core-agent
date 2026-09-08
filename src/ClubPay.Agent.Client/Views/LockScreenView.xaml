@@ -43,11 +43,8 @@
         <ColumnDefinition Width="Auto"/>
       </Grid.ColumnDefinitions>
 
-      <!-- Logo + Club Name -->
+      <!-- Club name -->
       <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-        <!-- Hexagon logo -->
-        <Path Data="M17,0 L34,9.5 L34,28.5 L17,38 L0,28.5 L0,9.5 Z"
-              Margin="0,0,16,0" Fill="{StaticResource LogoGradient}" Width="34" Height="38"/>
         <StackPanel VerticalAlignment="Center">
           <TextBlock Text="{Binding ClubName}" Foreground="White"
                      FontFamily="{StaticResource FontChakra}" FontSize="30" FontWeight="Bold"/>
