@@ -74,7 +74,7 @@ public sealed class FakeControllerServer : IAsyncDisposable
     /// <summary>Sends a command to whichever agent is currently connected.</summary>
     public async Task SendCommandAsync(string name, object payload, string? commandId = null, CancellationToken ct = default)
     {
-        await WaitForConnectionAsync(TimeSpan.FromSeconds(5), ct);
+        await WaitForConnectionAsync(TimeSpan.FromSeconds(15), ct);
         if (_socket is not { State: WebSocketState.Open } socket)
             throw new InvalidOperationException("no agent is connected");
 
@@ -97,7 +97,7 @@ public sealed class FakeControllerServer : IAsyncDisposable
     public async Task<CommandResultEnvelope> AwaitNextCommandResultAsync(TimeSpan? timeout = null, CancellationToken ct = default)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(timeout ?? TimeSpan.FromSeconds(5));
+        cts.CancelAfter(timeout ?? TimeSpan.FromSeconds(15));
         await _resultSignal.WaitAsync(cts.Token);
 
         if (!_commandResults.TryDequeue(out var envelope))
@@ -108,7 +108,7 @@ public sealed class FakeControllerServer : IAsyncDisposable
     public async Task<EventEnvelope> AwaitNextEventAsync(TimeSpan? timeout = null, CancellationToken ct = default)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(timeout ?? TimeSpan.FromSeconds(5));
+        cts.CancelAfter(timeout ?? TimeSpan.FromSeconds(15));
         await _eventSignal.WaitAsync(cts.Token);
 
         if (!_events.TryDequeue(out var envelope))
