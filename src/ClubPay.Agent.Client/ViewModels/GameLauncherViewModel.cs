@@ -47,7 +47,7 @@ public partial class GameLauncherViewModel : ObservableObject
         _config = config;
         _steamGames = steamGames;
         _localizer = localizer;
-        ClubName = config["Agent:ClubName"] ?? "NEXUS ARENA";
+        ClubName = config["Agent:ClubName"] ?? "ClubPay";
         PcId     = config["Agent:PcId"]     ?? "PC-01";
 
         _localizer.PropertyChanged += (_, args) =>

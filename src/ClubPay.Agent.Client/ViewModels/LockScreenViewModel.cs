@@ -20,7 +20,7 @@ public partial class LockScreenViewModel : ObservableObject
 
     [ObservableProperty] private string _pcId = "PC-12";
     [ObservableProperty] private string _zoneLabel = "Standard Zone · Standart Zona";
-    [ObservableProperty] private string _clubName = "NEXUS ARENA";
+    [ObservableProperty] private string _clubName = "ClubPay";
     [ObservableProperty] private string _currentTime = "--:--";
 
     [ObservableProperty] private BitmapImage? _payQrImage;

@@ -31,7 +31,7 @@ public sealed class AgentService : IAgentService
     {
         _logger = logger;
         PcId = MachineNameTemplate.Expand(config["Agent:PcId"] ?? "PC-01")!;
-        ClubName = config["Agent:ClubName"] ?? "NEXUS ARENA";
+        ClubName = config["Agent:ClubName"] ?? "ClubPay";
         TimeZoneId = config["Agent:TimeZone"] ?? "Asia/Tashkent";
         WifiSsid = config["Agent:WifiSsid"] ?? "ClubPay-Guest";
         WifiPassword = config["Agent:WifiPassword"] ?? string.Empty;
