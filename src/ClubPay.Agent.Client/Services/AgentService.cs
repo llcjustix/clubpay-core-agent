@@ -22,6 +22,10 @@ public sealed class AgentService : IAgentService
     public string? StaticPaymentQrUrl { get; private set; }
     public event Action? StaticPaymentQrUrlChanged;
     public event Action? BootstrapChanged;
+    public bool HasActiveReservation { get; private set; }
+    public string? ReservationEntryCode { get; private set; }
+    public DateTimeOffset? ReservationStartsAt { get; private set; }
+    public DateTimeOffset? ReservationCheckinDeadline { get; private set; }
 
     private readonly IReadOnlyList<string> _bootstrapUrls;
     private readonly string _agentToken;
@@ -82,12 +86,13 @@ public sealed class AgentService : IAgentService
                     throw new InvalidOperationException("Core bootstrap returned an invalid qr_url");
 
                 var bootstrapChanged = ApplyBootstrapIdentity(payload.RootElement);
+                var reservationChanged = ApplyReservation(payload.RootElement);
                 if (!string.Equals(StaticPaymentQrUrl, qrUrl, StringComparison.Ordinal))
                 {
                     StaticPaymentQrUrl = qrUrl;
                     StaticPaymentQrUrlChanged?.Invoke();
                 }
-                if (bootstrapChanged)
+                if (bootstrapChanged || reservationChanged)
                     BootstrapChanged?.Invoke();
 
                 _logger.LogInformation("Static payment QR loaded from {Endpoint} for {ExternalPcId}", endpoint, ExternalPcId);
@@ -157,6 +162,33 @@ public sealed class AgentService : IAgentService
                 _logger.LogWarning(ex, "Could not report Agent online state to {Endpoint}", bootstrapEndpoint);
             }
         }
+    }
+
+    private bool ApplyReservation(JsonElement payload)
+    {
+        var hasReservation = payload.TryGetProperty("reservation", out var reservation)
+            && reservation.ValueKind == JsonValueKind.Object;
+        var entryCode = hasReservation && reservation.TryGetProperty("entry_code", out var code)
+            ? code.GetString()
+            : null;
+        DateTimeOffset? startsAt = null;
+        DateTimeOffset? deadline = null;
+        if (hasReservation && reservation.TryGetProperty("starts_at", out var start)
+            && DateTimeOffset.TryParse(start.GetString(), out var parsedStart))
+            startsAt = parsedStart;
+        if (hasReservation && reservation.TryGetProperty("checkin_deadline", out var end)
+            && DateTimeOffset.TryParse(end.GetString(), out var parsedDeadline))
+            deadline = parsedDeadline;
+
+        var changed = HasActiveReservation != hasReservation
+            || !string.Equals(ReservationEntryCode, entryCode, StringComparison.Ordinal)
+            || ReservationStartsAt != startsAt
+            || ReservationCheckinDeadline != deadline;
+        HasActiveReservation = hasReservation;
+        ReservationEntryCode = entryCode;
+        ReservationStartsAt = startsAt;
+        ReservationCheckinDeadline = deadline;
+        return changed;
     }
 
     private bool ApplyBootstrapIdentity(JsonElement payload)

@@ -18,6 +18,11 @@ public interface IAgentService
     /// <summary>The public static payment QR URL returned by Core bootstrap for this PC.</summary>
     string? StaticPaymentQrUrl { get; }
     event Action? StaticPaymentQrUrlChanged;
+    /// <summary>True only during the protected 30-minute reservation window and its 15-minute arrival period.</summary>
+    bool HasActiveReservation { get; }
+    string? ReservationEntryCode { get; }
+    DateTimeOffset? ReservationStartsAt { get; }
+    DateTimeOffset? ReservationCheckinDeadline { get; }
     /// <summary>Raised after Core bootstrap refreshes player-facing PC, club, or zone data.</summary>
     event Action? BootstrapChanged;
 

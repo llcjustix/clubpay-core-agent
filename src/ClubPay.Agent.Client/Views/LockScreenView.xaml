@@ -100,34 +100,48 @@
         </TextBlock.Foreground>
       </TextBlock>
 
-      <!-- QR pay frame with glow pulse -->
-      <Border x:Name="QrPayFrame" CornerRadius="20" Background="White" Padding="22"
-              HorizontalAlignment="Center" Margin="0,38,0,0">
-        <Border.Effect>
-          <DropShadowEffect x:Name="QrPayGlow" Color="#FF00D4FF"
-                            BlurRadius="46" ShadowDepth="0" Opacity="0.22"/>
-        </Border.Effect>
-        <Border.Triggers>
-          <EventTrigger RoutedEvent="Loaded">
-            <BeginStoryboard>
-              <Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                <DoubleAnimation Storyboard.TargetName="QrPayGlow"
-                                 Storyboard.TargetProperty="BlurRadius"
-                                 From="46" To="78" Duration="0:0:1.6"/>
-                <DoubleAnimation Storyboard.TargetName="QrPayGlow"
-                                 Storyboard.TargetProperty="Opacity"
-                                 From="0.22" To="0.5" Duration="0:0:1.6"/>
-              </Storyboard>
-            </BeginStoryboard>
-          </EventTrigger>
-        </Border.Triggers>
-        <Image Source="{Binding PayQrImage}" Width="300" Height="300"
-               RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-      </Border>
+      <!-- Standard static payment QR. It disappears while this PC is held for a reservation. -->
+      <StackPanel Margin="0,38,0,0">
+        <StackPanel.Style>
+          <Style TargetType="StackPanel">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsReserved}" Value="True">
+                <Setter Property="Visibility" Value="Collapsed"/>
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </StackPanel.Style>
+        <Border CornerRadius="20" Background="White" Padding="22" HorizontalAlignment="Center">
+          <Image Source="{Binding PayQrImage}" Width="300" Height="300" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+        </Border>
+        <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToPay], Mode=OneWay}" HorizontalAlignment="Center" Margin="0,18,0,0"
+                   Foreground="{StaticResource GreenBrush}" FontFamily="{StaticResource FontChakra}" FontSize="26" FontWeight="SemiBold"/>
+      </StackPanel>
 
-      <!-- Scan hint -->
-      <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToPay], Mode=OneWay}" HorizontalAlignment="Center" Margin="0,18,0,0"
-                 Foreground="{StaticResource GreenBrush}" FontFamily="{StaticResource FontChakra}" FontSize="26" FontWeight="SemiBold"/>
+      <!-- Reservation replaces the payment QR during the protected window. -->
+      <Border CornerRadius="20" Padding="42,30" Margin="0,38,0,0" Background="#1A23B05D" BorderBrush="#AA00E676" BorderThickness="1">
+        <Border.Style>
+          <Style TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsReserved}" Value="True">
+                <Setter Property="Visibility" Value="Visible"/>
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Border.Style>
+        <StackPanel HorizontalAlignment="Center">
+          <TextBlock Text="ПК ЗАБРОНИРОВАН" HorizontalAlignment="Center" Foreground="{StaticResource GreenBrush}" FontFamily="{StaticResource FontChakra}" FontSize="34" FontWeight="Bold"/>
+          <TextBlock Text="Ваша бронь начинается в" HorizontalAlignment="Center" Margin="0,20,0,0" Foreground="{StaticResource TextSecondary}" FontFamily="{StaticResource FontChakra}" FontSize="22"/>
+          <TextBlock Text="{Binding ReservationStart}" HorizontalAlignment="Center" Foreground="White" FontFamily="{StaticResource FontMono}" FontSize="54" FontWeight="Bold"/>
+          <TextBlock Text="Код для начала игры" HorizontalAlignment="Center" Margin="0,20,0,0" Foreground="{StaticResource TextSecondary}" FontFamily="{StaticResource FontChakra}" FontSize="22"/>
+          <TextBlock Text="{Binding ReservationCode}" HorizontalAlignment="Center" Foreground="White" FontFamily="{StaticResource FontMono}" FontSize="72" FontWeight="Bold"/>
+          <TextBlock Text="Введите код до" HorizontalAlignment="Center" Margin="0,18,0,0" Foreground="{StaticResource TextSecondary}" FontFamily="{StaticResource FontChakra}" FontSize="20"/>
+          <TextBlock Text="{Binding ArrivalDeadline}" HorizontalAlignment="Center" Foreground="{StaticResource GreenBrush}" FontFamily="{StaticResource FontMono}" FontSize="30" FontWeight="Bold"/>
+          <TextBlock Text="Если не начать игру в течение 15 минут после начала, бронь отменится и ПК снова станет свободным." TextAlignment="Center" TextWrapping="Wrap" Width="650" HorizontalAlignment="Center" Margin="0,18,0,0" Foreground="{StaticResource TextMuted}" FontFamily="{StaticResource FontChakra}" FontSize="18"/>
+        </StackPanel>
+      </Border>
     </StackPanel>
 
     <!-- WIFI CORNER (bottom-left) -->
