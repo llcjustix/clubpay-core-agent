@@ -35,6 +35,9 @@ public interface IAgentService
     /// WebSocket remains responsible for real-time commands and disconnects.</summary>
     Task ReportOnlineAsync(CancellationToken ct = default);
 
+    /// <summary>Validates the active reservation code and starts the paid profile session.</summary>
+    Task CheckInReservationAsync(string entryCode, CancellationToken ct = default);
+
     Task SleepAsync(CancellationToken ct = default);
 
     /// <summary>Prevents (or allows) the OS from idling the display/system to sleep on its own —
