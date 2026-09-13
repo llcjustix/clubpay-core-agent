@@ -1,13 +1,12 @@
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using ClubPay.Agent.Core.Services;
 using ClubPay.Agent.Client.Services;
 
 namespace ClubPay.Agent.Client.ViewModels;
 
-/// <summary>Shows the normal payment screen or the focused reservation check-in screen.</summary>
+/// <summary>Shows the ordinary payment screen or a distraction-free reservation screen.</summary>
 public partial class LockScreenViewModel : ObservableObject
 {
     private readonly IAgentService _agent;
@@ -20,19 +19,11 @@ public partial class LockScreenViewModel : ObservableObject
     [ObservableProperty] private string _clubName = "ClubPay";
     [ObservableProperty] private string _currentTime = "--:--";
     [ObservableProperty] private bool _isReserved;
+    [ObservableProperty] private string _reservationCode = string.Empty;
     [ObservableProperty] private string _reservationStart = string.Empty;
-    [ObservableProperty] private string _arrivalDeadline = string.Empty;
-    [ObservableProperty] private bool _canEnterReservationCode;
-    [ObservableProperty] private bool _checkingIn;
-    [ObservableProperty] private string _reservationEntry = string.Empty;
-    [ObservableProperty] private string _reservationWaitText = string.Empty;
-    [ObservableProperty] private string _reservationError = string.Empty;
 
     [ObservableProperty] private BitmapImage? _payQrImage;
     [ObservableProperty] private BitmapImage? _wifiQrImage;
-
-    public bool CanSubmitReservationCode =>
-        CanEnterReservationCode && !CheckingIn && ReservationEntry.Length == 6 && ReservationEntry.All(char.IsDigit);
 
     public LockScreenViewModel(IAgentService agent, QrCodeService qr)
     {
@@ -48,38 +39,6 @@ public partial class LockScreenViewModel : ObservableObject
         _agent.StaticPaymentQrUrlChanged += RefreshPaymentQr;
         _agent.BootstrapChanged += RefreshIdentity;
         GenerateQrCodes();
-    }
-
-    partial void OnReservationEntryChanged(string value)
-    {
-        if (!string.IsNullOrEmpty(ReservationError))
-            ReservationError = string.Empty;
-        OnPropertyChanged(nameof(CanSubmitReservationCode));
-    }
-
-    partial void OnCheckingInChanged(bool value) => OnPropertyChanged(nameof(CanSubmitReservationCode));
-    partial void OnCanEnterReservationCodeChanged(bool value) => OnPropertyChanged(nameof(CanSubmitReservationCode));
-
-    [RelayCommand]
-    private async Task CheckInReservationAsync()
-    {
-        if (!CanSubmitReservationCode)
-            return;
-        CheckingIn = true;
-        ReservationError = string.Empty;
-        try
-        {
-            await _agent.CheckInReservationAsync(ReservationEntry);
-            ReservationWaitText = "Игра запускается…";
-        }
-        catch (Exception ex)
-        {
-            ReservationError = ex.Message;
-        }
-        finally
-        {
-            CheckingIn = false;
-        }
     }
 
     private void GenerateQrCodes()
@@ -115,35 +74,15 @@ public partial class LockScreenViewModel : ObservableObject
         ZoneLabel = _agent.ZoneName;
         _clubTimeZone = ResolveTimeZone(_agent.TimeZoneId);
         IsReserved = _agent.HasActiveReservation;
+        ReservationCode = IsReserved ? _agent.ReservationEntryCode ?? string.Empty : string.Empty;
         ReservationStart = _agent.ReservationStartsAt is { } start
             ? TimeZoneInfo.ConvertTime(start, _clubTimeZone).ToString("HH:mm")
             : string.Empty;
-        ArrivalDeadline = _agent.ReservationCheckinDeadline is { } deadline
-            ? TimeZoneInfo.ConvertTime(deadline, _clubTimeZone).ToString("HH:mm")
-            : string.Empty;
-        if (!IsReserved)
-        {
-            ReservationEntry = string.Empty;
-            ReservationError = string.Empty;
-        }
         RefreshClock();
     }
 
     private void RefreshClock()
-    {
-        CurrentTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _clubTimeZone).ToString("HH:mm");
-        var now = DateTimeOffset.UtcNow;
-        var startsAt = _agent.ReservationStartsAt;
-        var deadline = _agent.ReservationCheckinDeadline;
-        CanEnterReservationCode = IsReserved && startsAt is not null && deadline is not null && now >= startsAt && now <= deadline;
-        ReservationWaitText = !IsReserved
-            ? string.Empty
-            : CanEnterReservationCode
-                ? CheckingIn ? "Проверяем код…" : "Введите шестизначный код из приложения ClubPay."
-                : startsAt is null
-                    ? string.Empty
-                    : $"Код можно ввести с {TimeZoneInfo.ConvertTime(startsAt.Value, _clubTimeZone):HH:mm}.";
-    }
+        => CurrentTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _clubTimeZone).ToString("HH:mm");
 
     private static TimeZoneInfo ResolveTimeZone(string? timeZoneId)
     {

@@ -164,60 +164,6 @@ public sealed class AgentService : IAgentService
         }
     }
 
-    public async Task CheckInReservationAsync(string entryCode, CancellationToken ct = default)
-    {
-        entryCode = (entryCode ?? string.Empty).Trim();
-        if (entryCode.Length != 6 || entryCode.Any(character => !char.IsDigit(character)))
-            throw new InvalidOperationException("Введите шестизначный код из приложения ClubPay.");
-        if (_bootstrapUrls.Count == 0)
-            throw new InvalidOperationException("Сервер бронирования не настроен.");
-
-        string? lastError = null;
-        foreach (var bootstrapEndpoint in _bootstrapUrls)
-        {
-            try
-            {
-                var body = JsonSerializer.Serialize(new { external_pc_id = ExternalPcId, entry_code = entryCode });
-                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-                using var request = new HttpRequestMessage(HttpMethod.Post, BuildReservationCheckInUri(bootstrapEndpoint))
-                {
-                    Content = new StringContent(body, Encoding.UTF8, "application/json"),
-                };
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _agentToken);
-                using var response = await client.SendAsync(request, ct);
-                if (response.IsSuccessStatusCode)
-                    return;
-                var responseBody = await response.Content.ReadAsStringAsync(ct);
-                lastError = ReservationError(responseBody);
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                lastError = ex.Message;
-            }
-        }
-        throw new InvalidOperationException(lastError ?? "Не удалось начать игру. Повторите попытку.");
-    }
-
-    private static string ReservationError(string body)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(body);
-            var code = document.RootElement.TryGetProperty("error", out var value) ? value.GetString() : null;
-            return code switch
-            {
-                "reservation_code_not_active" => "Код ещё не действует, введён неверно или время брони закончилось.",
-                "reservation_balance_insufficient" => "Для этой брони недостаточно оплаченного времени в профиле.",
-                "reservation_start_failed" => "Не удалось запустить игру. Повторите попытку.",
-                _ => "Не удалось проверить код. Повторите попытку.",
-            };
-        }
-        catch { return "Не удалось проверить код. Повторите попытку."; }
-    }
 
     private bool ApplyReservation(JsonElement payload)
     {
@@ -293,8 +239,6 @@ public sealed class AgentService : IAgentService
         return builder.Uri;
     }
 
-    private static Uri BuildReservationCheckInUri(string bootstrapEndpoint)
-        => new Uri(new Uri(bootstrapEndpoint), "/api/core/reservations/check-in");
 
     private static Uri BuildEventsUri(string bootstrapEndpoint)
     {
