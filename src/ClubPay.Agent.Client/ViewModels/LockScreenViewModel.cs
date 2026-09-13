@@ -19,7 +19,6 @@ public partial class LockScreenViewModel : ObservableObject
     [ObservableProperty] private string _clubName = "ClubPay";
     [ObservableProperty] private string _currentTime = "--:--";
     [ObservableProperty] private bool _isReserved;
-    [ObservableProperty] private string _reservationCode = string.Empty;
     [ObservableProperty] private string _reservationStart = string.Empty;
 
     [ObservableProperty] private BitmapImage? _payQrImage;
@@ -74,7 +73,6 @@ public partial class LockScreenViewModel : ObservableObject
         ZoneLabel = _agent.ZoneName;
         _clubTimeZone = ResolveTimeZone(_agent.TimeZoneId);
         IsReserved = _agent.HasActiveReservation;
-        ReservationCode = IsReserved ? _agent.ReservationEntryCode ?? string.Empty : string.Empty;
         ReservationStart = _agent.ReservationStartsAt is { } start
             ? TimeZoneInfo.ConvertTime(start, _clubTimeZone).ToString("HH:mm")
             : string.Empty;

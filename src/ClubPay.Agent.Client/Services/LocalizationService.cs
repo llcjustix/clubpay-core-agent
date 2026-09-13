@@ -76,6 +76,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
     private static readonly IReadOnlyDictionary<string, string> RussianStrings = new Dictionary<string, string>
     {
         ["GamingClub"] = "ИГРОВОЙ КЛУБ", ["Locked"] = "ЗАБЛОКИРОВАН",
+        ["ReservationLocked"] = "ПК ЗАБРОНИРОВАН", ["ReservationStartsAt"] = "Ваша бронь начинается в",
+        ["ReservationOpenMobile"] = "Откройте ClubPay на телефоне и нажмите «Начать игру».",
+        ["ReservationExpiry"] = "Если не начать игру в течение 15 минут после начала, бронь отменится.",
         ["ScanToPay"] = "Сканируйте для оплаты", ["NoInternet"] = "Нет интернета? Сначала подключитесь к Wi‑Fi",
         ["WifiHelp"] = "Отсканируйте QR-код, чтобы подключиться к Wi‑Fi",
         ["Menu"] = "Меню", ["EndSession"] = "Завершить сеанс", ["ActiveSession"] = "АКТИВНЫЙ СЕАНС", ["Remaining"] = "осталось",
@@ -107,6 +110,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
     private static readonly IReadOnlyDictionary<string, string> UzbekStrings = new Dictionary<string, string>
     {
         ["GamingClub"] = "O'YIN KLUBI", ["Locked"] = "BLOKLANGAN",
+        ["ReservationLocked"] = "KOMPYUTER BAND QILINGAN", ["ReservationStartsAt"] = "Broningiz boshlanish vaqti",
+        ["ReservationOpenMobile"] = "Telefoningizda ClubPay-ni oching va «O'yinni boshlash» tugmasini bosing.",
+        ["ReservationExpiry"] = "O'yin boshlangandan keyin 15 daqiqa ichida boshlanmasa, bron bekor qilinadi.",
         ["ScanToPay"] = "To'lov uchun skanerlang", ["NoInternet"] = "Internet yo'qmi? Avval Wi‑Fi'ga ulang",
         ["WifiHelp"] = "Wi‑Fi'ga ulanish uchun QR-kodni skanerlang",
         ["Menu"] = "Menyu", ["EndSession"] = "Seansni yakunlash", ["ActiveSession"] = "FAOL SEANS", ["Remaining"] = "qolgan vaqt",

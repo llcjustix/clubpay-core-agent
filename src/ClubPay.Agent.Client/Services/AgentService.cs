@@ -23,7 +23,6 @@ public sealed class AgentService : IAgentService
     public event Action? StaticPaymentQrUrlChanged;
     public event Action? BootstrapChanged;
     public bool HasActiveReservation { get; private set; }
-    public string? ReservationEntryCode { get; private set; }
     public DateTimeOffset? ReservationStartsAt { get; private set; }
     public DateTimeOffset? ReservationCheckinDeadline { get; private set; }
 
@@ -169,9 +168,6 @@ public sealed class AgentService : IAgentService
     {
         var hasReservation = payload.TryGetProperty("reservation", out var reservation)
             && reservation.ValueKind == JsonValueKind.Object;
-        var entryCode = hasReservation && reservation.TryGetProperty("entry_code", out var code)
-            ? code.GetString()
-            : null;
         DateTimeOffset? startsAt = null;
         DateTimeOffset? deadline = null;
         if (hasReservation && reservation.TryGetProperty("starts_at", out var start)
@@ -182,11 +178,9 @@ public sealed class AgentService : IAgentService
             deadline = parsedDeadline;
 
         var changed = HasActiveReservation != hasReservation
-            || !string.Equals(ReservationEntryCode, entryCode, StringComparison.Ordinal)
             || ReservationStartsAt != startsAt
             || ReservationCheckinDeadline != deadline;
         HasActiveReservation = hasReservation;
-        ReservationEntryCode = entryCode;
         ReservationStartsAt = startsAt;
         ReservationCheckinDeadline = deadline;
         return changed;
