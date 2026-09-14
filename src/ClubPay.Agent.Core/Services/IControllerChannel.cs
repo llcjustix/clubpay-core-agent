@@ -16,6 +16,8 @@ public enum ChannelConnectionState
 public interface IControllerChannel : IAsyncDisposable
 {
     ChannelConnectionState ConnectionState { get; }
+    /// <summary>The WebSocket endpoint currently carrying this Agent's commands, if connected.</summary>
+    string? ActiveEndpoint { get; }
     event Action<ChannelConnectionState>? ConnectionStateChanged;
 
     Task StartAsync(CancellationToken ct = default);

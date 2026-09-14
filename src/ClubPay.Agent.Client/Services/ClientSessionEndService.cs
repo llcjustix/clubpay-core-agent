@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using ClubPay.Agent.Core.Services;
 
 namespace ClubPay.Agent.Client.Services;
@@ -11,16 +12,27 @@ public sealed class ClientSessionEndService : IClientSessionEndService
 {
     private readonly ISessionCoordinator _coordinator;
     private readonly IAgentService _agent;
+    private readonly IControllerChannel _channel;
     private readonly string _agentToken;
     private readonly IReadOnlyList<Uri> _endpoints;
+    private readonly ILogger<ClientSessionEndService> _logger;
+
+    // Core waits up to ten seconds for the Agent's WebSocket confirmation. Keep
+    // the HTTP bound just above that, while allowing a stale controller endpoint
+    // to fail over promptly to the endpoint that is actually connected.
+    private static readonly TimeSpan EndpointTimeout = TimeSpan.FromSeconds(12);
 
     public ClientSessionEndService(
         ISessionCoordinator coordinator,
         IAgentService agent,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IControllerChannel channel,
+        ILogger<ClientSessionEndService> logger)
     {
         _coordinator = coordinator;
         _agent = agent;
+        _channel = channel;
+        _logger = logger;
         _agentToken = configuration["Controller:AgentToken"] ?? string.Empty;
         _endpoints = BuildEndpoints(configuration);
     }
@@ -40,11 +52,12 @@ public sealed class ClientSessionEndService : IClientSessionEndService
             core_session_id = coreSessionId.ToString("N"),
         });
         string? lastError = null;
-        foreach (var endpoint in _endpoints)
+        foreach (var endpoint in GetEndpointsForCurrentConnection())
         {
+            var startedAt = DateTime.UtcNow;
             try
             {
-                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+                using var client = new HttpClient { Timeout = EndpointTimeout };
                 using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
                 {
                     Content = new StringContent(body, Encoding.UTF8, "application/json"),
@@ -56,6 +69,8 @@ public sealed class ClientSessionEndService : IClientSessionEndService
                 if (!response.IsSuccessStatusCode)
                 {
                     lastError = ReadString(responseBody, "error") ?? "Could not end the session";
+                    _logger.LogWarning("Session-end endpoint {Endpoint} returned {StatusCode} after {ElapsedMs} ms: {Error}",
+                        endpoint, (DateTime.UtcNow - startedAt).TotalMilliseconds, (int)response.StatusCode, lastError);
                     continue;
                 }
 
@@ -63,6 +78,8 @@ public sealed class ClientSessionEndService : IClientSessionEndService
                 var root = document.RootElement;
                 var voucher = root.TryGetProperty("voucher", out var voucherElement) ? voucherElement : default;
                 var delivery = root.TryGetProperty("voucher_delivery", out var deliveryElement) ? deliveryElement : default;
+                _logger.LogInformation("Session ended through {Endpoint} in {ElapsedMs} ms", endpoint,
+                    (DateTime.UtcNow - startedAt).TotalMilliseconds);
                 return new ClientSessionEndResult(
                     IsProfileSession: root.TryGetProperty("player_profile", out var playerProfile) && playerProfile.ValueKind == JsonValueKind.True,
                     VoucherCode: voucher.ValueKind == JsonValueKind.Object ? ReadString(voucher, "code") : null,
@@ -81,10 +98,25 @@ public sealed class ClientSessionEndService : IClientSessionEndService
             catch (Exception ex)
             {
                 lastError = ex.Message;
+                _logger.LogWarning(ex, "Session-end endpoint {Endpoint} failed after {ElapsedMs} ms", endpoint,
+                    (DateTime.UtcNow - startedAt).TotalMilliseconds);
             }
         }
 
         throw new InvalidOperationException(lastError ?? "Could not end the session");
+    }
+
+    private IEnumerable<Uri> GetEndpointsForCurrentConnection()
+    {
+        var active = BuildSessionEndEndpoint(_channel.ActiveEndpoint);
+        if (active is not null)
+            yield return active;
+
+        foreach (var endpoint in _endpoints)
+        {
+            if (active is null || !endpoint.Equals(active))
+                yield return endpoint;
+        }
     }
 
     private static IReadOnlyList<Uri> BuildEndpoints(IConfiguration configuration)
@@ -109,8 +141,24 @@ public sealed class ClientSessionEndService : IClientSessionEndService
 
     private static void AddBootstrapEndpoint(ICollection<Uri> endpoints, string? value)
     {
-        if (Uri.TryCreate(value, UriKind.Absolute, out var bootstrap))
-            AddEndpoint(endpoints, new Uri(bootstrap, "/api/core/agent/session/end").AbsoluteUri);
+        var endpoint = BuildSessionEndEndpoint(value);
+        if (endpoint is not null)
+            AddEndpoint(endpoints, endpoint.AbsoluteUri);
+    }
+
+    private static Uri? BuildSessionEndEndpoint(string? value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var source))
+            return null;
+
+        var builder = new UriBuilder(source)
+        {
+            Scheme = source.Scheme.Equals("wss", StringComparison.OrdinalIgnoreCase) ? "https"
+                : source.Scheme.Equals("ws", StringComparison.OrdinalIgnoreCase) ? "http" : source.Scheme,
+            Path = "/api/core/agent/session/end",
+            Query = string.Empty,
+        };
+        return builder.Uri;
     }
 
     private static void AddEndpoint(ICollection<Uri> endpoints, string? value)

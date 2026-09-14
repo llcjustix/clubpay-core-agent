@@ -32,6 +32,7 @@ public sealed class ControllerChannelService : IControllerChannel
     private Task? _runLoopTask;
 
     public ChannelConnectionState ConnectionState { get; private set; } = ChannelConnectionState.Disconnected;
+    public string? ActiveEndpoint { get; private set; }
     public event Action<ChannelConnectionState>? ConnectionStateChanged;
 
     // ICommandDispatcher is resolved lazily via IServiceProvider rather than taken as a direct
@@ -127,6 +128,7 @@ public sealed class ControllerChannelService : IControllerChannel
                     await socket.ConnectAsync(BuildUri(endpoint), ct);
 
                     connected = true;
+                    ActiveEndpoint = endpoint;
                     SetState(ChannelConnectionState.Connected);
                     attempt = 0;
                     _logger.LogInformation("Controller channel connected to {Endpoint}", endpoint);
@@ -147,6 +149,8 @@ public sealed class ControllerChannelService : IControllerChannel
                 }
                 finally
                 {
+                    if (string.Equals(ActiveEndpoint, endpoint, StringComparison.Ordinal))
+                        ActiveEndpoint = null;
                     socket?.Dispose();
                 }
             }

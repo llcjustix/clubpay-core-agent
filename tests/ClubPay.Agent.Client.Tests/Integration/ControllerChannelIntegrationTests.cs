@@ -93,6 +93,18 @@ public sealed class ControllerChannelIntegrationTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task StartAsync_WhenConnected_ExposesTheEndpointServingCommands()
+    {
+        var (server, channel) = await StartFullStackAsync();
+
+        Assert.Equal(server.WebSocketUrl.ToString(), channel.ActiveEndpoint);
+
+        await channel.StopAsync();
+
+        Assert.Null(channel.ActiveEndpoint);
+    }
+
+    [Fact]
     public async Task StartSession_RoundTrip_ReturnsOkAndPublishesSessionStarted()
     {
         var (server, _) = await StartFullStackAsync();
