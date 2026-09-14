@@ -32,6 +32,7 @@ public partial class GameLauncherViewModel : ObservableObject
     private readonly ILogger<GameLauncherViewModel> _logger;
     private readonly IConfiguration _config;
     private readonly SteamGameDiscoveryService _steamGames;
+    private readonly LauncherCatalogService _catalog;
     private readonly LocalizationService _localizer;
 
     public string ClubName { get; }
@@ -40,12 +41,14 @@ public partial class GameLauncherViewModel : ObservableObject
     public GameLauncherViewModel(
         IConfiguration config,
         SteamGameDiscoveryService steamGames,
+        LauncherCatalogService catalog,
         LocalizationService localizer,
         ILogger<GameLauncherViewModel> logger)
     {
         _logger = logger;
         _config = config;
         _steamGames = steamGames;
+        _catalog = catalog;
         _localizer = localizer;
         ClubName = config["Agent:ClubName"] ?? "ClubPay";
         PcId     = config["Agent:PcId"]     ?? "PC-01";
@@ -58,46 +61,54 @@ public partial class GameLauncherViewModel : ObservableObject
         RefreshApps();
     }
 
-    private void RefreshApps()
+    public async void RefreshApps()
     {
-        Apps.Clear();
+        var discovered = new List<LauncherApp>();
         var section = _config.GetSection("Launcher:Apps");
         foreach (var item in section.GetChildren())
         {
+            var name = item["Name"] ?? "?";
             var app = new LauncherApp(
-                Name:     item["Name"]     ?? "?",
-                ExePath:  item["ExePath"]  ?? "",
-                Args:     item["Args"]     ?? "",
+                Name: name,
+                ExePath: item["ExePath"] ?? "",
+                Args: item["Args"] ?? "",
                 IconPath: item["IconPath"] ?? "",
-                Category: LocalizeCategory(item["Category"]));
-            // Never show an attractive but non-working tile: configured apps must exist locally.
-            if (IsPlayerLaunchable(app) && File.Exists(app.ExePath))
-                Apps.Add(app);
+                Category: LauncherCategories.Normalize(item["Category"] ?? LauncherCategories.Classify(name)));
+            if (IsPlayerLaunchable(app) && File.Exists(app.ExePath)) discovered.Add(app);
         }
-
         foreach (var app in _steamGames.Discover())
+            if (!discovered.Any(existing => string.Equals(existing.Args, app.Args, StringComparison.OrdinalIgnoreCase) &&
+                                            string.Equals(existing.ExePath, app.ExePath, StringComparison.OrdinalIgnoreCase)))
+                discovered.Add(app);
+
+        ReplaceApps(discovered);
+        try
         {
-            if (!Apps.Any(existing => string.Equals(existing.Args, app.Args, StringComparison.OrdinalIgnoreCase) &&
-                                      string.Equals(existing.ExePath, app.ExePath, StringComparison.OrdinalIgnoreCase)))
-                Apps.Add(app);
+            var categories = await _catalog.SyncAsync(_config["Controller:ExternalPcId"] ?? PcId.ToLowerInvariant(), discovered);
+            if (categories.Count == 0) return;
+            ReplaceApps(discovered.Select(app => categories.TryGetValue(app.Key, out var category)
+                ? app with { Category = category }
+                : app));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Launcher category synchronization failed");
         }
     }
 
-    private string LocalizeCategory(string? category)
+    private void ReplaceApps(IEnumerable<LauncherApp> apps)
     {
-        if (string.IsNullOrWhiteSpace(category) ||
-            category.Equals("Game", StringComparison.OrdinalIgnoreCase) ||
-            category.Equals("Игра", StringComparison.OrdinalIgnoreCase) ||
-            category.Equals("O'yin", StringComparison.OrdinalIgnoreCase))
-            return _localizer["Game"];
-
-        if (category.Equals("Platform", StringComparison.OrdinalIgnoreCase) ||
-            category.Equals("Платформа", StringComparison.OrdinalIgnoreCase) ||
-            category.Equals("Platforma", StringComparison.OrdinalIgnoreCase))
-            return _localizer["Platform"];
-
-        return category;
+        Apps.Clear();
+        foreach (var app in apps.OrderBy(app => app.Name, StringComparer.CurrentCultureIgnoreCase))
+            Apps.Add(app with { Category = LocalizeCategory(app.Category) });
     }
+
+    private string LocalizeCategory(string? category) => LauncherCategories.Normalize(category) switch
+    {
+        LauncherCategories.Shooter => _localizer["Shooter"],
+        LauncherCategories.Strategy => _localizer["Strategy"],
+        _ => _localizer["Other"],
+    };
 
     [RelayCommand]
     public async Task LaunchApp(LauncherApp app)

@@ -57,6 +57,7 @@ public partial class App : Application
             sc.AddSingleton<ISystemClock, SystemClock>();
             sc.AddSingleton<IVoiceAnnouncementService, VoiceAnnouncementService>();
             sc.AddSingleton<SteamGameDiscoveryService>();
+            sc.AddSingleton<LauncherCatalogService>();
             sc.AddSingleton<IClientSessionEndService, ClientSessionEndService>();
             sc.AddSingleton<ISessionCoordinator, SessionCoordinatorService>();
             sc.AddSingleton<IAgentUpdateService, AgentUpdateService>();
@@ -92,6 +93,7 @@ public partial class App : Application
             _ = agent.RefreshStaticPaymentQrUrlAsync(_startupCts.Token);
             _ = agent.ReportOnlineAsync(_startupCts.Token);
             _ = RefreshBootstrapLoopAsync(agent, _startupCts.Token);
+            _ = RefreshLauncherCatalogLoopAsync(_services.GetRequiredService<GameLauncherViewModel>(), _startupCts.Token);
 
             _ = _services.GetRequiredService<GameLauncherWindow>();  // creates Instance
             _ = _services.GetRequiredService<PlayerDockWindow>();    // creates Instance
@@ -167,6 +169,20 @@ public partial class App : Application
         {
             while (await timer.WaitForNextTickAsync(ct))
                 await agent.RefreshStaticPaymentQrUrlAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Application is closing.
+        }
+    }
+
+    private static async Task RefreshLauncherCatalogLoopAsync(GameLauncherViewModel launcher, CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+                launcher.RefreshApps();
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

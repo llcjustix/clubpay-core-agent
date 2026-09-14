@@ -13,7 +13,6 @@ namespace ClubPay.Agent.Client.Services;
 /// </summary>
 public sealed class SteamGameDiscoveryService(
     IConfiguration config,
-    LocalizationService localizer,
     ILogger<SteamGameDiscoveryService> logger)
 {
     private static readonly Regex VdfPath = new("\\\"path\\\"\\s+\\\"(?<value>[^\\\"]+)\\\"", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -37,7 +36,7 @@ public sealed class SteamGameDiscoveryService(
         // launching a game. The Agent remains fullscreen behind the Steam window.
         var apps = new List<LauncherApp>
         {
-            new("Steam", steamExe, Category: localizer["Platform"])
+            new("Steam", steamExe, Category: LauncherCategories.Other)
         };
 
         foreach (var manifest in roots.SelectMany(GetManifestFiles))
@@ -55,7 +54,7 @@ public sealed class SteamGameDiscoveryService(
                 if (appId == "228980" || name.Equals("Steamworks Common Redistributables", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                apps.Add(new LauncherApp(name, steamExe, $"-applaunch {appId}", Category: localizer["Game"]));
+                apps.Add(new LauncherApp(name, steamExe, $"-applaunch {appId}", Category: LauncherCategories.Classify(name)));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
