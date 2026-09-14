@@ -9,7 +9,10 @@ using ClubPay.Agent.Core.Models;
 namespace ClubPay.Agent.Client.Services;
 
 /// <summary>Synchronizes each PC's discovered launchers with centrally managed categories.</summary>
-public sealed class LauncherCatalogService(IConfiguration config, ILogger<LauncherCatalogService> logger)
+public sealed class LauncherCatalogService(
+    IConfiguration config,
+    ILogger<LauncherCatalogService> logger,
+    HttpMessageHandler? httpHandler = null)
 {
     private readonly IReadOnlyList<string> _bootstrapUrls = ReadUrls(config);
     private readonly string _agentToken = config["Controller:AgentToken"] ?? string.Empty;
@@ -25,11 +28,15 @@ public sealed class LauncherCatalogService(IConfiguration config, ILogger<Launch
             external_pc_id = externalPcId,
             apps = apps.Select(app => new { key = app.Key, name = app.Name, exe_path = app.ExePath, args = app.Args, category = app.Category }),
         });
+        IReadOnlyDictionary<string, string> categories = new Dictionary<string, string>();
         foreach (var bootstrapUrl in _bootstrapUrls)
         {
             try
             {
-                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                using var client = httpHandler is null
+                    ? new HttpClient()
+                    : new HttpClient(httpHandler, disposeHandler: false);
+                client.Timeout = TimeSpan.FromSeconds(10);
                 using var request = new HttpRequestMessage(HttpMethod.Post, CatalogUri(bootstrapUrl))
                 {
                     Content = new StringContent(payload, Encoding.UTF8, "application/json"),
@@ -39,9 +46,12 @@ public sealed class LauncherCatalogService(IConfiguration config, ILogger<Launch
                 response.EnsureSuccessStatusCode();
                 await using var stream = await response.Content.ReadAsStreamAsync(ct);
                 using var document = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-                if (!document.RootElement.TryGetProperty("categories", out var categories) || categories.ValueKind != JsonValueKind.Object)
-                    return new Dictionary<string, string>();
-                return categories.EnumerateObject().ToDictionary(
+                if (!document.RootElement.TryGetProperty("categories", out var responseCategories) || responseCategories.ValueKind != JsonValueKind.Object)
+                    continue;
+                // Do not stop after the local Controller accepts the inventory.
+                // With the normal order local → cloud, the cloud response wins;
+                // if cloud is unavailable the local response remains in use.
+                categories = responseCategories.EnumerateObject().ToDictionary(
                     property => property.Name,
                     property => LauncherCategories.Normalize(property.Value.GetString()),
                     StringComparer.OrdinalIgnoreCase);
@@ -49,7 +59,7 @@ public sealed class LauncherCatalogService(IConfiguration config, ILogger<Launch
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { return new Dictionary<string, string>(); }
             catch (Exception ex) { logger.LogDebug(ex, "Could not synchronize launcher catalog with {Endpoint}", bootstrapUrl); }
         }
-        return new Dictionary<string, string>();
+        return categories;
     }
 
     private static Uri CatalogUri(string bootstrapEndpoint)
