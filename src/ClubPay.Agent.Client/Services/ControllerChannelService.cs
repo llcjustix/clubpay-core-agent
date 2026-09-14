@@ -131,6 +131,7 @@ public sealed class ControllerChannelService : IControllerChannel
                     ActiveEndpoint = endpoint;
                     SetState(ChannelConnectionState.Connected);
                     attempt = 0;
+                    AgentRuntimeHealth.MarkControllerConnected();
                     _logger.LogInformation("Controller channel connected to {Endpoint}", endpoint);
                     await PublishEventAsync(Constants.ControllerChannel.EventName.AgentOnline, new AgentOnlineEvent(_externalPcId), ct);
 

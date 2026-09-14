@@ -25,10 +25,11 @@ Write-Host 'Updating ClubPay Manager…' -ForegroundColor Cyan
 # Preserve the desktop build too. The nested Controller has its own atomic
 # update and health-check rollback, while this backup protects the Manager UI
 # if copying a new desktop build is interrupted.
-$desktopBackup = Join-Path $env:TEMP ('clubpay-manager-desktop-' + [guid]::NewGuid().ToString())
+$desktopBackup = Join-Path $installDirectory 'updates\versions\previous-desktop'
+if (Test-Path $desktopBackup) { Remove-Item -Path $desktopBackup -Recurse -Force }
 New-Item -ItemType Directory -Path $desktopBackup -Force | Out-Null
 Get-ChildItem -Path $installDirectory -Force | Where-Object {
-    $_.Name -ne 'Controller'
+    $_.Name -notin @('Controller', 'updates')
 } | ForEach-Object {
     Copy-Item -Path $_.FullName -Destination $desktopBackup -Recurse -Force
 }
@@ -51,6 +52,18 @@ try {
     }
 
     Start-Process -FilePath $installedManager
+    $healthy = $false
+    for ($attempt = 1; $attempt -le 20; $attempt++) {
+        if (Get-Process -Name 'ClubPay.Agent.Admin' -ErrorAction SilentlyContinue) {
+            $healthy = $true
+            break
+        }
+        Start-Sleep -Seconds 3
+    }
+    if (-not $healthy) {
+        throw 'Manager did not remain running for 60 seconds.'
+    }
+    @{ status = 'healthy'; updated_at = [DateTime]::UtcNow.ToString('O') } | ConvertTo-Json | Set-Content -Path (Join-Path $installDirectory 'updates\last-update.json') -Encoding UTF8
     Write-Host 'ClubPay Manager updated and started.' -ForegroundColor Green
 }
 catch {
@@ -62,9 +75,6 @@ catch {
     }
     Start-Process -FilePath $installedManager -ErrorAction SilentlyContinue
     throw $updateError
-}
-finally {
-    Remove-Item -Path $desktopBackup -Recurse -Force -ErrorAction SilentlyContinue
 }
 if (-not $NoPrompt) {
     Read-Host 'Press Enter to close'

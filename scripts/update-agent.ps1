@@ -26,11 +26,14 @@ Write-Host 'Updating ClubPay Agent…' -ForegroundColor Cyan
 # are replaced; the updater must never turn a configured kiosk into an
 # unbound Agent.
 $configBackup = Join-Path $env:TEMP ('clubpay-agent-config-' + [guid]::NewGuid().ToString() + '.json')
-$programBackup = Join-Path $env:TEMP ('clubpay-agent-program-' + [guid]::NewGuid().ToString())
+# Retain the last known good build beside the Agent. It is independent of the
+# downloaded release and remains available without Internet access.
+$programBackup = Join-Path $installDirectory 'updates\versions\previous'
+if (Test-Path $programBackup) { Remove-Item -Path $programBackup -Recurse -Force }
 Copy-Item -Path $installedConfig -Destination $configBackup -Force
 New-Item -ItemType Directory -Path $programBackup -Force | Out-Null
 Get-ChildItem -Path $installDirectory -Force | Where-Object {
-    $_.Name -ne 'appsettings.Local.json'
+    $_.Name -notin @('appsettings.Local.json', 'updates', 'runtime')
 } | ForEach-Object {
     Copy-Item -Path $_.FullName -Destination $programBackup -Recurse -Force
 }
@@ -41,8 +44,29 @@ try {
     Copy-Item -Path (Join-Path $bundleDirectory '*') -Destination $installDirectory -Recurse -Force
     Copy-Item -Path $configBackup -Destination $installedConfig -Force
 
+    $healthPath = Join-Path $installDirectory 'runtime\agent-health.json'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $healthPath) -Force | Out-Null
+    Remove-Item -Path $healthPath -Force -ErrorAction SilentlyContinue
+    $startedAt = [DateTime]::UtcNow
+
     Start-Process -FilePath $installedExecutable
-    Write-Host 'ClubPay Agent updated and started.' -ForegroundColor Green
+    # The replacement is accepted only after it has re-established its
+    # Controller channel. A process that merely starts and crash-loops must
+    # roll back just like a failed download.
+    $healthy = $false
+    for ($attempt = 1; $attempt -le 20; $attempt++) {
+        if ((Get-Process -Name 'ClubPay.Agent.Client' -ErrorAction SilentlyContinue) -and
+            (Test-Path $healthPath) -and ((Get-Item $healthPath).LastWriteTimeUtc -ge $startedAt)) {
+            $healthy = $true
+            break
+        }
+        Start-Sleep -Seconds 3
+    }
+    if (-not $healthy) {
+        throw 'Agent did not reconnect to the Controller within 60 seconds.'
+    }
+    @{ status = 'healthy'; updated_at = [DateTime]::UtcNow.ToString('O') } | ConvertTo-Json | Set-Content -Path (Join-Path $installDirectory 'updates\last-update.json') -Encoding UTF8
+    Write-Host 'ClubPay Agent updated and reconnected to Controller.' -ForegroundColor Green
 }
 catch {
     $updateError = $_
@@ -57,7 +81,6 @@ catch {
 }
 finally {
     Remove-Item -Path $configBackup -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path $programBackup -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 if (-not $NoPrompt) {
