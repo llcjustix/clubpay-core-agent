@@ -34,6 +34,7 @@ public partial class GameLauncherViewModel : ObservableObject
     private readonly SteamGameDiscoveryService _steamGames;
     private readonly LauncherCatalogService _catalog;
     private readonly LocalizationService _localizer;
+    private readonly Dictionary<string, string> _catalogCategories = new(StringComparer.OrdinalIgnoreCase);
 
     public string ClubName { get; }
     public string PcId     { get; }
@@ -83,21 +84,31 @@ public partial class GameLauncherViewModel : ObservableObject
                                             string.Equals(existing.ExePath, app.ExePath, StringComparison.OrdinalIgnoreCase)))
                 discovered.Add(app);
 
-        ReplaceApps(discovered);
+        // Keep the last confirmed manager choices while the next background request runs.
+        // Otherwise every 30-second poll briefly replaces a manager category with its
+        // automatic fallback before the response arrives.
+        ReplaceApps(ApplyCatalogCategories(discovered));
         try
         {
             var externalPcId = MachineNameTemplate.Expand(_config["Controller:ExternalPcId"]);
             var categories = await _catalog.SyncAsync(externalPcId ?? PcId.ToLowerInvariant(), discovered);
             if (categories.Count == 0) return;
-            ReplaceApps(discovered.Select(app => categories.TryGetValue(app.Key, out var category)
-                ? app with { Category = category }
-                : app));
+
+            _catalogCategories.Clear();
+            foreach (var (key, category) in categories)
+                _catalogCategories[key] = category;
+            ReplaceApps(ApplyCatalogCategories(discovered));
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Launcher category synchronization failed");
         }
     }
+
+    private IEnumerable<LauncherApp> ApplyCatalogCategories(IEnumerable<LauncherApp> apps) =>
+        apps.Select(app => _catalogCategories.TryGetValue(app.Key, out var category)
+            ? app with { Category = category }
+            : app);
 
     private void ReplaceApps(IEnumerable<LauncherApp> apps)
     {
