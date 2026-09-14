@@ -61,7 +61,9 @@ public partial class GameLauncherViewModel : ObservableObject
         RefreshApps();
     }
 
-    public async void RefreshApps()
+    public void RefreshApps() => _ = RefreshAppsAsync();
+
+    private async Task RefreshAppsAsync()
     {
         var discovered = new List<LauncherApp>();
         var section = _config.GetSection("Launcher:Apps");
@@ -84,7 +86,8 @@ public partial class GameLauncherViewModel : ObservableObject
         ReplaceApps(discovered);
         try
         {
-            var categories = await _catalog.SyncAsync(_config["Controller:ExternalPcId"] ?? PcId.ToLowerInvariant(), discovered);
+            var externalPcId = MachineNameTemplate.Expand(_config["Controller:ExternalPcId"]);
+            var categories = await _catalog.SyncAsync(externalPcId ?? PcId.ToLowerInvariant(), discovered);
             if (categories.Count == 0) return;
             ReplaceApps(discovered.Select(app => categories.TryGetValue(app.Key, out var category)
                 ? app with { Category = category }
@@ -98,9 +101,19 @@ public partial class GameLauncherViewModel : ObservableObject
 
     private void ReplaceApps(IEnumerable<LauncherApp> apps)
     {
+        var localized = apps
+            .OrderBy(app => app.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(app => app with { Category = LocalizeCategory(app.Category) })
+            .ToList();
+
+        // The catalog is refreshed in the background. Do not clear and rebuild the
+        // visible launcher when neither discovery nor a manager-selected category changed.
+        if (Apps.Count == localized.Count && Apps.SequenceEqual(localized))
+            return;
+
         Apps.Clear();
-        foreach (var app in apps.OrderBy(app => app.Name, StringComparer.CurrentCultureIgnoreCase))
-            Apps.Add(app with { Category = LocalizeCategory(app.Category) });
+        foreach (var app in localized)
+            Apps.Add(app);
     }
 
     private string LocalizeCategory(string? category) => LauncherCategories.Normalize(category) switch
