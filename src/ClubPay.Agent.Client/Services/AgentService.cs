@@ -268,8 +268,14 @@ public sealed class AgentService : IAgentService
 
     public Task SleepAsync(CancellationToken ct = default)
     {
-        NativeMethods.SetSuspendState(false, false, false);
-        return Task.CompletedTask;
+        ct.ThrowIfCancellationRequested();
+
+        if (NativeMethods.SetSuspendState(false, false, false))
+            return Task.CompletedTask;
+
+        var error = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+        _logger.LogError("Windows rejected the sleep request (Win32 error {ErrorCode})", error);
+        throw new InvalidOperationException($"Windows rejected the sleep request (Win32 error {error}).");
     }
 
     public void KeepAwake(bool keepAwake)

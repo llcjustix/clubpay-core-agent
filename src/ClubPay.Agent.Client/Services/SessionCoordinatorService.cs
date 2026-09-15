@@ -368,21 +368,21 @@ public sealed class SessionCoordinatorService : ISessionCoordinator
     private async Task SleepInternalAsync(CancellationToken ct)
     {
         _idle.Stop();
-        _isAsleep = true;
-        RaiseStateChanged();
-        await PublishPcStateChangedAsync(ct);
-
         try
         {
+            // SetSuspendState reports whether Windows accepted the request. Do not publish a
+            // sleeping state before that acknowledgement: virtual machines and power policies
+            // can reject it while the Agent keeps running.
             await _agent.SleepAsync(ct);
-        }
-        finally
-        {
-            _isAsleep = false;
-            if (State == AgentState.Locked)
-                _idle.Start();
+            _isAsleep = true;
             RaiseStateChanged();
             await PublishPcStateChangedAsync(ct);
+        }
+        catch
+        {
+            if (State == AgentState.Locked)
+                _idle.Start();
+            throw;
         }
     }
 

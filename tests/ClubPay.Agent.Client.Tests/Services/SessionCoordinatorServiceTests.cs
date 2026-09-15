@@ -33,6 +33,7 @@ public class SessionCoordinatorServiceTests
             Idempotency.Setup(i => i.RecordAppliedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
             Channel.Setup(c => c.PublishEventAsync(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
             Agent.SetupGet(a => a.ExternalPcId).Returns("club12-pc07");
+            Agent.Setup(a => a.SleepAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
             Clock.SetupGet(c => c.UtcNow).Returns(Now);
         }
 
@@ -263,6 +264,42 @@ public class SessionCoordinatorServiceTests
         var ex = await Assert.ThrowsAsync<SessionCommandException>(() => sut.SleepAsync());
 
         Assert.Equal(ErrorCode.PcBusy, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task SleepAsync_WhenWindowsAcceptsRequest_PublishesSleepingStateWithoutResettingIt()
+    {
+        var m = new Mocks();
+        var sut = m.BuildSut();
+
+        await sut.SleepAsync();
+
+        Assert.Equal(PcState.Sleeping, sut.GetStatus().PcState);
+        m.Agent.Verify(a => a.SleepAsync(It.IsAny<CancellationToken>()), Times.Once);
+        m.Idle.Verify(i => i.Stop(), Times.Once);
+        m.Idle.Verify(i => i.Start(), Times.Never);
+        m.Channel.Verify(c => c.PublishEventAsync(
+            "pc_status_changed",
+            It.IsAny<object>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SleepAsync_WhenWindowsRejectsRequest_RestoresIdleAndKeepsPcAvailable()
+    {
+        var m = new Mocks();
+        m.Agent.Setup(a => a.SleepAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Windows rejected the sleep request."));
+        var sut = m.BuildSut();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.SleepAsync());
+
+        Assert.Equal(PcState.Free, sut.GetStatus().PcState);
+        m.Idle.Verify(i => i.Start(), Times.Once);
+        m.Channel.Verify(c => c.PublishEventAsync(
+            "pc_status_changed",
+            It.IsAny<object>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
