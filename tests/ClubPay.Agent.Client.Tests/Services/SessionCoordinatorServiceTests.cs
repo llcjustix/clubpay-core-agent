@@ -279,7 +279,7 @@ public class SessionCoordinatorServiceTests
         m.Idle.Verify(i => i.Stop(), Times.Once);
         m.Idle.Verify(i => i.Start(), Times.Never);
         m.Channel.Verify(c => c.PublishEventAsync(
-            "pc_status_changed",
+            "pc_state_changed",
             It.IsAny<object>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -297,7 +297,7 @@ public class SessionCoordinatorServiceTests
         Assert.Equal(PcState.Free, sut.GetStatus().PcState);
         m.Idle.Verify(i => i.Start(), Times.Once);
         m.Channel.Verify(c => c.PublishEventAsync(
-            "pc_status_changed",
+            "pc_state_changed",
             It.IsAny<object>(),
             It.IsAny<CancellationToken>()), Times.Never);
     }
