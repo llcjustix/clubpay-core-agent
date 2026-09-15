@@ -56,6 +56,11 @@
             <TextBlock Text="{Binding DataContext.ClubName, ElementName=SessionCard}"
                        FontFamily="{StaticResource FontChakra}" FontSize="19"
                        FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+            <TextBlock Text=" · " Foreground="{StaticResource TextMuted}"
+                       FontFamily="{StaticResource FontMono}" FontSize="15" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding DataContext.PcLabel, ElementName=SessionCard}"
+                       FontFamily="{StaticResource FontMono}" FontSize="15"
+                       Foreground="{StaticResource CyanBrush}" VerticalAlignment="Center"/>
           </StackPanel>
 
           <!-- Running app indicator -->

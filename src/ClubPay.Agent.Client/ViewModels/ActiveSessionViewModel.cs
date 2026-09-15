@@ -22,6 +22,7 @@ public partial class ActiveSessionViewModel : ObservableObject
     [ObservableProperty] private string _remainingTimeText = "01:24";
     [ObservableProperty] private int _remainingSeconds = 5075;
     [ObservableProperty] private string _clubName = "ClubPay";
+    [ObservableProperty] private string _pcLabel = "";
     [ObservableProperty] private string _zoneLabel = "";
 
     public ActiveSessionViewModel(IAgentService agent, LocalizationService localizer)
@@ -80,6 +81,7 @@ public partial class ActiveSessionViewModel : ObservableObject
             return;
         }
         ClubName = _agent.ClubName;
+        PcLabel = _agent.PcId;
         if (_session is null || string.IsNullOrWhiteSpace(_session.Zone))
             ZoneLabel = _agent.ZoneName;
     }
