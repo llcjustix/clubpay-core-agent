@@ -2,7 +2,7 @@ name: Release ClubPay Windows clients
 
 on:
   push:
-    tags: ['v*']
+    branches: ['main']
   workflow_dispatch:
 
 permissions:
@@ -12,6 +12,13 @@ jobs:
   release:
     runs-on: windows-latest
     steps:
+      - name: Set release version
+        id: version
+        shell: pwsh
+        run: |
+          $version = "0.2.${{ github.run_number }}"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "tag=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
@@ -19,7 +26,7 @@ jobs:
       - name: Publish Windows applications
         shell: pwsh
         run: |
-          $version = '${{ github.ref_name }}'.TrimStart('v', 'V')
+          $version = '${{ steps.version.outputs.version }}'
           dotnet publish src/ClubPay.Agent.Client/ClubPay.Agent.Client.csproj --configuration Release --runtime win-x64 --self-contained true "-p:Version=$version" --output dist/ClubPay-Agent
           dotnet publish src/ClubPay.Agent.Admin/ClubPay.Agent.Admin.csproj --configuration Release --runtime win-x64 --self-contained true "-p:Version=$version" --output dist/ClubPay-Manager
       - name: Package applications
@@ -59,7 +66,7 @@ jobs:
           Copy-Item -Path scripts/controller-enrollment.example.json -Destination dist/ClubPay-Manager-Desktop
           Copy-Item -Path scripts/update-manager.cmd -Destination dist/ClubPay-Manager-Desktop
           Get-Content -Path scripts/update-manager.ps1 -Raw | Set-Content -Path dist/ClubPay-Manager-Desktop/update-manager.ps1 -Encoding utf8BOM
-          '${{ github.ref_name }}' | Set-Content -Path dist/ClubPay-Manager-Desktop/clubpay-manager-version.txt -Encoding ascii
+          '${{ steps.version.outputs.tag }}' | Set-Content -Path dist/ClubPay-Manager-Desktop/clubpay-manager-version.txt -Encoding ascii
           @'
           @echo off
           setlocal EnableExtensions
@@ -85,6 +92,9 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ClubPay Agent ${{ steps.version.outputs.tag }}
           generate_release_notes: true
           files: |
             dist/ClubPay-Agent-win-x64.zip
