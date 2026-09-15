@@ -23,20 +23,31 @@
         <DropShadowEffect Color="#FF00D4FF" BlurRadius="50" ShadowDepth="0" Opacity="0.07"/>
       </Border.Effect>
 
-      <StackPanel>
+      <!-- Keep controls fixed at the top. Session details live at the bottom so
+           a long club name never competes with the language picker or menu. -->
+      <Grid Height="360">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
         <!-- Header row -->
-        <Grid>
+        <Grid Grid.Row="0">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
-          <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-            <Path Data="M13,0 L26,7.25 L26,21.75 L13,29 L0,21.75 L0,7.25 Z"
+          <Grid Grid.Column="0" VerticalAlignment="Center">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Path Grid.Column="0" Data="M13,0 L26,7.25 L26,21.75 L13,29 L0,21.75 L0,7.25 Z"
                   Fill="{StaticResource LogoGradient}" Width="26" Height="29" Margin="0,0,11,0"/>
-            <TextBlock Text="{Binding ClubName}" Foreground="White"
-                       FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Bold"/>
-          </StackPanel>
+            <TextBlock Grid.Column="1" Text="{Binding ClubName}" Foreground="White"
+                       FontFamily="{StaticResource FontChakra}" FontSize="15" FontWeight="Bold"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+          </Grid>
           <ComboBox Grid.Column="1" Style="{StaticResource LanguagePicker}" Margin="0,0,10,0"
                     SelectedValue="{Binding Source={StaticResource Loc}, Path=LanguageCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                     SelectedValuePath="Tag" VerticalContentAlignment="Center">
@@ -63,8 +74,10 @@
         </Button>
         </Grid>
 
+        <!-- The details are deliberately anchored to the bottom of the card. -->
+        <StackPanel Grid.Row="1" VerticalAlignment="Bottom">
         <!-- Status indicator -->
-        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+        <StackPanel Orientation="Horizontal">
           <Ellipse Width="9" Height="9" Fill="{StaticResource GreenBrush}" Margin="0,0,9,0"
                    VerticalAlignment="Center">
             <Ellipse.Effect>
@@ -110,7 +123,8 @@
         <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ManageSessionOnPhone], Mode=OneWay}"
                    Margin="0,4,0,0" Foreground="{StaticResource TextMuted}"
                    FontFamily="{StaticResource FontMono}" FontSize="11" TextWrapping="Wrap"/>
-      </StackPanel>
+        </StackPanel>
+      </Grid>
     </Border>
 
   </StackPanel>
