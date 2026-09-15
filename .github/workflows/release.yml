@@ -60,8 +60,13 @@ jobs:
           # Update this immutable Controller release together with the Manager
           # package. Keeping a fixed legacy URL here meant a freshly updated
           # Manager silently reinstalled an obsolete Controller.
-          $controllerUrl = 'https://github.com/llcjustix/clubpay-platform/releases/download/controller-v0.2.34/ClubPay-Controller-win-x64.zip'
-          Invoke-WebRequest -Uri $controllerUrl -OutFile dist/controller.zip
+          # Always bundle the newest published Controller release. The Controller
+          # release is created before the Agent release, so a Manager installer
+          # never stays pinned to a historical controller version.
+          $controllerRelease = Invoke-RestMethod -Uri 'https://api.github.com/repos/llcjustix/clubpay-platform/releases/latest'
+          $controllerAsset = @($controllerRelease.assets | Where-Object { $_.name -eq 'ClubPay-Controller-win-x64.zip' })[0]
+          if ($null -eq $controllerAsset -or [string]::IsNullOrWhiteSpace($controllerAsset.browser_download_url)) { throw 'latest Controller release has no Windows asset' }
+          Invoke-WebRequest -Uri $controllerAsset.browser_download_url -OutFile dist/controller.zip
           Expand-Archive -Path dist/controller.zip -DestinationPath dist/controller-unpacked
           New-Item -ItemType Directory -Force -Path dist/ClubPay-Manager-Desktop | Out-Null
           Copy-Item -Path dist/ClubPay-Manager/* -Destination dist/ClubPay-Manager-Desktop -Recurse
