@@ -41,7 +41,8 @@
             <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
 
-          <!-- Logo + club + pc -->
+          <!-- Player-facing club title. The previous PC identifier was useful
+               only for support and looked like an unexplained technical label. -->
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <Path Data="M17,0 L34,9.5 L34,28.5 L17,38 L0,28.5 L0,9.5 Z"
                   Width="26" Height="26" Stretch="Uniform" Margin="0,0,12,0">
@@ -52,12 +53,9 @@
                 </LinearGradientBrush>
               </Path.Fill>
             </Path>
-            <TextBlock Text="{Binding ClubName}" FontFamily="{StaticResource FontChakra}"
-                       FontSize="19" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
-            <TextBlock Text=" · " Foreground="{StaticResource TextMuted}"
-                       FontFamily="{StaticResource FontMono}" FontSize="15" VerticalAlignment="Center"/>
-            <TextBlock Text="{Binding PcId}" FontFamily="{StaticResource FontMono}"
-                       FontSize="15" Foreground="{StaticResource CyanBrush}" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding DataContext.ClubName, ElementName=SessionCard}"
+                       FontFamily="{StaticResource FontChakra}" FontSize="19"
+                       FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
           </StackPanel>
 
           <!-- Running app indicator -->
