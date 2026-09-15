@@ -35,9 +35,11 @@ public partial class PlayerDockWindow : Window
 
     private void PositionAtBottom()
     {
-        Left = SystemParameters.VirtualScreenLeft;
-        Top = SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - Height;
-        Width = SystemParameters.VirtualScreenWidth;
+        // The dock belongs to the primary player display. Using the virtual desktop
+        // produced a clipped bar on mixed-DPI installations.
+        Left = 0;
+        Width = SystemParameters.PrimaryScreenWidth;
+        Top = SystemParameters.PrimaryScreenHeight - Height;
     }
 
     private void OnDockItemRightClick(object sender, MouseButtonEventArgs e)

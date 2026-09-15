@@ -13,6 +13,7 @@ namespace ClubPay.Agent.Client.ViewModels;
 public partial class GameLauncherViewModel : ObservableObject
 {
     public ObservableCollection<LauncherApp> Apps { get; } = [];
+    public ObservableCollection<LauncherCategoryGroup> CategoryGroups { get; } = [];
     // This is deliberately not a list of every Windows process.  The player can only
     // return to applications that were launched through ClubPay, so the kiosk shell
     // never turns into a gateway to Explorer or system tools.
@@ -125,6 +126,14 @@ public partial class GameLauncherViewModel : ObservableObject
         Apps.Clear();
         foreach (var app in localized)
             Apps.Add(app);
+
+        CategoryGroups.Clear();
+        foreach (var group in localized
+            .GroupBy(app => app.Category, StringComparer.CurrentCultureIgnoreCase)
+            .OrderBy(group => CategoryOrder(group.Key)))
+        {
+            CategoryGroups.Add(new LauncherCategoryGroup(group.Key, group.ToList()));
+        }
     }
 
     private string LocalizeCategory(string? category) => LauncherCategories.Normalize(category) switch
@@ -132,6 +141,13 @@ public partial class GameLauncherViewModel : ObservableObject
         LauncherCategories.Shooter => _localizer["Shooter"],
         LauncherCategories.Strategy => _localizer["Strategy"],
         _ => _localizer["Other"],
+    };
+
+    private static int CategoryOrder(string category) => category switch
+    {
+        "Шутеры" or "Otishmalar" => 0,
+        "Стратегии" or "Strategiyalar" => 1,
+        _ => 2,
     };
 
     [RelayCommand]
@@ -555,4 +571,17 @@ internal static class NativeLauncher
         BringWindowToTop(hWnd);
         SetForegroundWindow(hWnd);
     }
+}
+
+
+public sealed class LauncherCategoryGroup
+{
+    public LauncherCategoryGroup(string name, IReadOnlyList<LauncherApp> apps)
+    {
+        Name = name;
+        Apps = apps;
+    }
+
+    public string Name { get; }
+    public IReadOnlyList<LauncherApp> Apps { get; }
 }

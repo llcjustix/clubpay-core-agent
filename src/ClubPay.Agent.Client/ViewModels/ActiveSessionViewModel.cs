@@ -1,4 +1,3 @@
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -15,22 +14,18 @@ namespace ClubPay.Agent.Client.ViewModels;
 /// </summary>
 public partial class ActiveSessionViewModel : ObservableObject
 {
-    private readonly QrCodeService _qr;
     private readonly IAgentService _agent;
     private readonly LocalizationService _localizer;
     private readonly DispatcherTimer _timer;
     private Session? _session;
-    private string? _extendUrl;
 
     [ObservableProperty] private string _remainingTimeText = "01:24";
     [ObservableProperty] private int _remainingSeconds = 5075;
     [ObservableProperty] private string _clubName = "ClubPay";
     [ObservableProperty] private string _zoneLabel = "";
-    [ObservableProperty] private BitmapImage? _extendQrImage;
 
-    public ActiveSessionViewModel(QrCodeService qr, IAgentService agent, LocalizationService localizer)
+    public ActiveSessionViewModel(IAgentService agent, LocalizationService localizer)
     {
-        _qr = qr;
         _agent = agent;
         _localizer = localizer;
         RefreshIdentity();
@@ -47,21 +42,11 @@ public partial class ActiveSessionViewModel : ObservableObject
     public void Sync(Session session)
     {
         bool isNewSession = _session is null || _session.Id != session.Id;
-        bool hasNewExtendUrl = !string.Equals(_extendUrl, session.ExtendUrl, StringComparison.Ordinal);
         _session = session;
 
         if (isNewSession)
         {
             ZoneLabel = string.IsNullOrWhiteSpace(session.Zone) ? _agent.ZoneName : session.Zone;
-
-        }
-
-        if (hasNewExtendUrl)
-        {
-            _extendUrl = session.ExtendUrl;
-            ExtendQrImage = string.IsNullOrWhiteSpace(session.ExtendUrl)
-                ? null
-                : _qr.Generate(session.ExtendUrl, 116);
         }
 
         RefreshTime(DateTime.UtcNow);
@@ -73,8 +58,6 @@ public partial class ActiveSessionViewModel : ObservableObject
     {
         _timer.Stop();
         _session = null;
-        _extendUrl = null;
-        ExtendQrImage = null;
     }
 
     private void RefreshTime(DateTime now)

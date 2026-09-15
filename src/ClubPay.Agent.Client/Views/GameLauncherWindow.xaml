@@ -96,60 +96,66 @@
                      FontFamily="{StaticResource FontChakra}" FontSize="14"
                      Foreground="#FFFF5A6F" TextWrapping="Wrap" Margin="0,0,0,16"/>
 
-          <!-- Tiles -->
-          <ItemsControl ItemsSource="{Binding Apps}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <WrapPanel Orientation="Horizontal"/>
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
+          <!-- Categories give players a fast scan path: each title is grouped once,
+               instead of repeating a small category label on every tile. -->
+          <ItemsControl ItemsSource="{Binding CategoryGroups}">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
-                <Border Width="200" Height="170" Margin="0,0,16,16"
-                        CornerRadius="16" Cursor="Hand"
-                        BorderThickness="1">
-                  <Border.Effect>
-                    <DropShadowEffect Color="#000000" BlurRadius="18" ShadowDepth="0" Opacity="0.4"/>
-                  </Border.Effect>
-                  <Border.InputBindings>
-                    <MouseBinding MouseAction="LeftClick"
-                      Command="{Binding DataContext.LaunchAppCommand,
-                                RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                      CommandParameter="{Binding}"/>
-                  </Border.InputBindings>
-                  <Border.Style>
-                    <Style TargetType="Border">
-                      <Setter Property="Background"   Value="#0DFFFFFF"/>
-                      <Setter Property="BorderBrush"  Value="#18FFFFFF"/>
-                      <Style.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                          <Setter Property="Background"  Value="#1AFFFFFF"/>
-                          <Setter Property="BorderBrush" Value="#3300D4FF"/>
-                        </Trigger>
-                      </Style.Triggers>
-                    </Style>
-                  </Border.Style>
-                  <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="16">
-                    <!-- First letter icon -->
-                    <Border Width="68" Height="68" CornerRadius="14"
-                            Background="#1400D4FF" HorizontalAlignment="Center">
-                      <TextBlock Text="{Binding FirstChar}"
-                                 FontFamily="{StaticResource FontChakra}"
-                                 FontSize="34" FontWeight="Bold"
-                                 Foreground="{StaticResource CyanBrush}"
-                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
-                    <TextBlock Text="{Binding Name}"
-                               FontFamily="{StaticResource FontChakra}"
-                               FontSize="14" FontWeight="SemiBold" Foreground="White"
-                               TextAlignment="Center" Margin="0,12,0,2"
-                               TextWrapping="Wrap" MaxWidth="160"/>
-                    <TextBlock Text="{Binding Category}"
-                               FontFamily="{StaticResource FontMono}"
-                               FontSize="11" Foreground="{StaticResource TextMuted}"
-                               TextAlignment="Center"/>
-                  </StackPanel>
-                </Border>
+                <StackPanel Margin="0,0,0,26">
+                  <TextBlock Text="{Binding Name}"
+                             FontFamily="{StaticResource FontChakra}" FontSize="20"
+                             FontWeight="SemiBold" Foreground="White" Margin="0,0,0,12"/>
+                  <ItemsControl ItemsSource="{Binding Apps}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal"/>
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Width="200" Height="150" Margin="0,0,16,16"
+                                CornerRadius="16" Cursor="Hand" BorderThickness="1">
+                          <Border.Effect>
+                            <DropShadowEffect Color="#000000" BlurRadius="18" ShadowDepth="0" Opacity="0.4"/>
+                          </Border.Effect>
+                          <Border.InputBindings>
+                            <MouseBinding MouseAction="LeftClick"
+                              Command="{Binding DataContext.LaunchAppCommand,
+                                RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding}"/>
+                          </Border.InputBindings>
+                          <Border.Style>
+                            <Style TargetType="Border">
+                              <Setter Property="Background" Value="#0DFFFFFF"/>
+                              <Setter Property="BorderBrush" Value="#18FFFFFF"/>
+                              <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                  <Setter Property="Background" Value="#1AFFFFFF"/>
+                                  <Setter Property="BorderBrush" Value="#3300D4FF"/>
+                                </Trigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Border.Style>
+                          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="16">
+                            <Border Width="60" Height="60" CornerRadius="14"
+                                    Background="#1400D4FF" HorizontalAlignment="Center">
+                              <TextBlock Text="{Binding FirstChar}"
+                                         FontFamily="{StaticResource FontChakra}"
+                                         FontSize="30" FontWeight="Bold"
+                                         Foreground="{StaticResource CyanBrush}"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="{Binding Name}"
+                                       FontFamily="{StaticResource FontChakra}"
+                                       FontSize="14" FontWeight="SemiBold" Foreground="White"
+                                       TextAlignment="Center" Margin="0,12,0,0"
+                                       TextWrapping="Wrap" MaxWidth="160"/>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
