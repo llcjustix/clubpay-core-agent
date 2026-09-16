@@ -1,5 +1,6 @@
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
