@@ -35,20 +35,31 @@ public sealed class ControllerChannelIntegrationTests : IAsyncDisposable
             Directory.Delete(_dataDir, recursive: true);
     }
 
-    private async Task<(FakeControllerServer Server, IControllerChannel Channel)> StartFullStackAsync()
+    private async Task<(FakeControllerServer Server, IControllerChannel Channel)> StartFullStackAsync(
+        FakeControllerServer? suppliedServer = null,
+        string? fallbackWebSocketUrl = null,
+        IReadOnlyDictionary<string, string?>? overrides = null)
     {
-        var server = new FakeControllerServer();
-        _servers.Add(server);
+        var server = suppliedServer ?? new FakeControllerServer();
+        if (!_servers.Contains(server))
+            _servers.Add(server);
         await server.StartAsync();
 
+        var values = new Dictionary<string, string?>
+        {
+            ["Controller:WebSocketUrl"] = server.WebSocketUrl.ToString(),
+            ["Controller:FallbackWebSocketUrls:0"] = fallbackWebSocketUrl,
+            ["Controller:AgentToken"] = "test-token",
+            ["Controller:ExternalPcId"] = "club12-pc07",
+            ["Agent:DataDirectory"] = _dataDir,
+        };
+        if (overrides is not null)
+        {
+            foreach (var (key, value) in overrides)
+                values[key] = value;
+        }
         var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Controller:WebSocketUrl"] = server.WebSocketUrl.ToString(),
-                ["Controller:AgentToken"] = "test-token",
-                ["Controller:ExternalPcId"] = "club12-pc07",
-                ["Agent:DataDirectory"] = _dataDir,
-            })
+            .AddInMemoryCollection(values)
             .Build();
 
         var agent = new Mock<IAgentService>();
@@ -174,5 +185,37 @@ public sealed class ControllerChannelIntegrationTests : IAsyncDisposable
         var evt = await server.AwaitNextEventAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal("time_low", evt.Name);
+    }
+
+    [Fact]
+    public async Task PrimaryFailure_FallsBackThenReturnsToRecoveredPrimaryWithoutSecondConnection()
+    {
+        var primary = new FakeControllerServer();
+        var backup = new FakeControllerServer();
+        _servers.Add(backup);
+        await backup.StartAsync();
+
+        var (_, channel) = await StartFullStackAsync(primary, backup.WebSocketUrl.ToString(), new Dictionary<string, string?>
+        {
+            ["Controller:FailoverTimeoutSeconds"] = "1",
+            ["Controller:PrimaryRecoveryProbeSeconds"] = "1",
+        });
+        await primary.WaitForConnectionAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(primary.WebSocketUrl.ToString(), channel.ActiveEndpoint);
+
+        var primaryPort = primary.Port;
+        primary.SimulateDisconnect();
+        await primary.StopAsync();
+        await backup.WaitForConnectionAsync(TimeSpan.FromSeconds(8));
+        Assert.Equal(backup.WebSocketUrl.ToString(), channel.ActiveEndpoint);
+
+        await primary.DisposeAsync();
+        _servers.Remove(primary);
+        var recoveredPrimary = new FakeControllerServer(primaryPort);
+        _servers.Add(recoveredPrimary);
+        await recoveredPrimary.StartAsync();
+
+        await recoveredPrimary.WaitForConnectionAsync(TimeSpan.FromSeconds(8));
+        Assert.Equal(recoveredPrimary.WebSocketUrl.ToString(), channel.ActiveEndpoint);
     }
 }

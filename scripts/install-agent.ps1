@@ -20,6 +20,7 @@ Write-Host ''
 Write-Host 'ClubPay Agent — настройка игрового ПК' -ForegroundColor Cyan
 
 $coreToken = ''
+$fallbackControllerAddress = ''
 if (Test-Path $EnrollmentPath) {
     try {
         $enrollment = Get-Content -Path $EnrollmentPath -Raw | ConvertFrom-Json
@@ -30,6 +31,7 @@ if (Test-Path $EnrollmentPath) {
 
     $externalPcId = ([string]$enrollment.external_pc_id).Trim()
     $controllerAddress = ([string]$enrollment.controller_url).Trim()
+    $fallbackControllerAddress = ([string]$enrollment.fallback_controller_url).Trim()
     $coreToken = ([string]$enrollment.core_token).Trim()
     if ([string]::IsNullOrWhiteSpace($externalPcId) -or [string]::IsNullOrWhiteSpace($controllerAddress) -or [string]::IsNullOrWhiteSpace($coreToken)) {
         throw 'Файл подготовки Agent должен содержать external_pc_id, controller_url и core_token.'
@@ -68,6 +70,23 @@ $controllerPort = if ($controllerUri.IsDefaultPort) { 8080 } else { $controllerU
 $portSuffix = ":$controllerPort"
 $controllerBaseUrl = '{0}://{1}{2}' -f $httpScheme, $controllerUri.Host, $portSuffix
 $controllerWebSocketUrl = '{0}://{1}{2}/api/core/ws' -f $webSocketScheme, $controllerUri.Host, $portSuffix
+$fallbackControllerBaseUrl = ''
+$fallbackControllerWebSocketUrl = ''
+if (-not [string]::IsNullOrWhiteSpace($fallbackControllerAddress)) {
+    if ($fallbackControllerAddress -notmatch '^https?://') { $fallbackControllerAddress = "http://$fallbackControllerAddress" }
+    try {
+        $fallbackControllerUri = [Uri]$fallbackControllerAddress
+        if ([string]::IsNullOrWhiteSpace($fallbackControllerUri.Host)) { throw 'host is empty' }
+    }
+    catch {
+        throw 'Указан некорректный адрес резервного Controller.'
+    }
+    $fallbackHttpScheme = if ($fallbackControllerUri.Scheme -eq 'https') { 'https' } else { 'http' }
+    $fallbackWebSocketScheme = if ($fallbackHttpScheme -eq 'https') { 'wss' } else { 'ws' }
+    $fallbackPort = if ($fallbackControllerUri.IsDefaultPort) { 8080 } else { $fallbackControllerUri.Port }
+    $fallbackControllerBaseUrl = '{0}://{1}:{2}' -f $fallbackHttpScheme, $fallbackControllerUri.Host, $fallbackPort
+    $fallbackControllerWebSocketUrl = '{0}://{1}:{2}/api/core/ws' -f $fallbackWebSocketScheme, $fallbackControllerUri.Host, $fallbackPort
+}
 
 $controllerReachable = Test-NetConnection -ComputerName $controllerUri.Host -Port $controllerPort -InformationLevel Quiet -WarningAction SilentlyContinue
 if (-not $controllerReachable) {
@@ -134,9 +153,9 @@ $config = [ordered]@{
         WebSocketUrl = $controllerWebSocketUrl
         BootstrapUrl = "$controllerBaseUrl/api/core/bootstrap"
         SessionEndUrl = "$controllerBaseUrl/api/core/agent/session/end"
-        FallbackWebSocketUrls = @('wss://api-clubpay.justix.uz/api/core/ws')
-        FallbackBootstrapUrls = @('https://api-clubpay.justix.uz/api/core/bootstrap')
-        FallbackSessionEndUrls = @('https://api-clubpay.justix.uz/api/core/agent/session/end')
+        FallbackWebSocketUrls = @($fallbackControllerWebSocketUrl, 'wss://api-clubpay.justix.uz/api/core/ws') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        FallbackBootstrapUrls = @("$fallbackControllerBaseUrl/api/core/bootstrap", 'https://api-clubpay.justix.uz/api/core/bootstrap') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        FallbackSessionEndUrls = @("$fallbackControllerBaseUrl/api/core/agent/session/end", 'https://api-clubpay.justix.uz/api/core/agent/session/end') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     }
 }
 

@@ -26,15 +26,16 @@ public sealed class FakeControllerServer : IAsyncDisposable
     private Task? _acceptTask;
 
     public Uri WebSocketUrl { get; }
+    public int Port { get; }
     public string? LastAuthorizationHeader { get; private set; }
     public string? LastExternalPcId { get; private set; }
     public bool RejectNextConnection { get; set; }
 
-    public FakeControllerServer()
+    public FakeControllerServer(int? port = null)
     {
-        int port = GetFreePort();
-        WebSocketUrl = new Uri($"ws://localhost:{port}/agent/ws");
-        _http.Prefixes.Add($"http://localhost:{port}/");
+        Port = port ?? GetFreePort();
+        WebSocketUrl = new Uri($"ws://localhost:{Port}/agent/ws");
+        _http.Prefixes.Add($"http://localhost:{Port}/");
     }
 
     public Task StartAsync(CancellationToken ct = default)
@@ -137,6 +138,13 @@ public sealed class FakeControllerServer : IAsyncDisposable
             while (!ct.IsCancellationRequested)
             {
                 var context = await _http.GetContextAsync();
+
+                if (string.Equals(context.Request.Url?.AbsolutePath, "/api/health", StringComparison.Ordinal))
+                {
+                    context.Response.StatusCode = 200;
+                    context.Response.Close();
+                    continue;
+                }
 
                 if (!context.Request.IsWebSocketRequest)
                 {

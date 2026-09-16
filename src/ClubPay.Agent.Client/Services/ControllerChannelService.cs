@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net;
 using System.Net.WebSockets;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
@@ -26,10 +27,13 @@ public sealed class ControllerChannelService : IControllerChannel
     private readonly string _agentToken;
     private readonly string _externalPcId;
     private readonly ILogger<ControllerChannelService> _logger;
+    private readonly TimeSpan _endpointConnectTimeout;
+    private readonly TimeSpan _primaryRecoveryProbeInterval;
 
     private readonly SemaphoreSlim _sendSignal = new(0);
     private CancellationTokenSource? _lifetimeCts;
     private Task? _runLoopTask;
+    private string? _activeConnectionId;
 
     public ChannelConnectionState ConnectionState { get; private set; } = ChannelConnectionState.Disconnected;
     public string? ActiveEndpoint { get; private set; }
@@ -52,6 +56,8 @@ public sealed class ControllerChannelService : IControllerChannel
         _webSocketUrls = ReadUrls(config, "Controller:WebSocketUrl", "Controller:FallbackWebSocketUrls");
         _agentToken = config["Controller:AgentToken"] ?? string.Empty;
         _externalPcId = config["Controller:ExternalPcId"] ?? string.Empty;
+        _endpointConnectTimeout = TimeSpan.FromSeconds(Clamp(config.GetValue<int?>("Controller:FailoverTimeoutSeconds") ?? 8, 2, 60));
+        _primaryRecoveryProbeInterval = TimeSpan.FromSeconds(Clamp(config.GetValue<int?>("Controller:PrimaryRecoveryProbeSeconds") ?? 5, 1, 60));
     }
 
     public Task StartAsync(CancellationToken ct = default)
@@ -89,8 +95,14 @@ public sealed class ControllerChannelService : IControllerChannel
 
     public async Task PublishEventAsync(string eventName, object payload, CancellationToken ct = default)
     {
+        // The Controller that receives an event must be able to fence events
+        // from a previous socket after a primary → Manager failover.  This ID
+        // changes on every successful WebSocket connection and is persisted in
+        // the outbox payload, so replayed events are still attributable to the
+        // current Agent connection.
         var evt = new EventEnvelope(
-            Constants.ControllerChannel.MessageType.Event, eventName, "ev_" + Guid.NewGuid().ToString("N"), DateTime.UtcNow, payload);
+            Constants.ControllerChannel.MessageType.Event, eventName, "ev_" + Guid.NewGuid().ToString("N"), DateTime.UtcNow,
+            WithConnectionIdentity(payload));
 
         try
         {
@@ -117,27 +129,52 @@ public sealed class ControllerChannelService : IControllerChannel
         {
             SetState(attempt == 0 ? ChannelConnectionState.Connecting : ChannelConnectionState.Reconnecting);
             var connected = false;
-            foreach (var endpoint in _webSocketUrls)
+            for (var endpointIndex = 0; endpointIndex < _webSocketUrls.Count; endpointIndex++)
             {
+                var endpoint = _webSocketUrls[endpointIndex];
                 ClientWebSocket? socket = null;
                 try
                 {
                     socket = new ClientWebSocket();
                     socket.Options.SetRequestHeader("Authorization", $"Bearer {_agentToken}");
                     socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(Constants.ControllerChannel.HeartbeatIntervalSeconds);
-                    await socket.ConnectAsync(BuildUri(endpoint), ct);
+                    using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    connectCts.CancelAfter(_endpointConnectTimeout);
+                    await socket.ConnectAsync(BuildUri(endpoint), connectCts.Token);
 
                     connected = true;
                     ActiveEndpoint = endpoint;
+                    _activeConnectionId = Guid.NewGuid().ToString("N");
                     SetState(ChannelConnectionState.Connected);
                     attempt = 0;
                     AgentRuntimeHealth.MarkControllerConnected();
-                    _logger.LogInformation("Controller channel connected to {Endpoint}", endpoint);
+                    _logger.LogInformation("Controller channel connected to {Endpoint} ({Role})", endpoint,
+                        endpointIndex == 0 ? "primary" : "fallback");
                     await PublishEventAsync(Constants.ControllerChannel.EventName.AgentOnline, new AgentOnlineEvent(_externalPcId), ct);
 
                     var receiveTask = ReceiveLoopAsync(socket, ct);
                     var sendTask = SendLoopAsync(socket, ct);
-                    await Task.WhenAny(receiveTask, sendTask);
+                    if (endpointIndex == 0)
+                    {
+                        await Task.WhenAny(receiveTask, sendTask);
+                    }
+                    else
+                    {
+                        var primaryRecovered = WaitForPrimaryRecoveryAsync(ct);
+                        var completed = await Task.WhenAny(receiveTask, sendTask, primaryRecovered);
+                        if (completed == primaryRecovered && !ct.IsCancellationRequested)
+                        {
+                            _logger.LogInformation("Primary Controller is healthy again; returning from fallback {Endpoint}", endpoint);
+                            try
+                            {
+                                await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "primary_controller_recovered", ct);
+                            }
+                            catch (WebSocketException)
+                            {
+                                // Disposing below is sufficient if the fallback is already gone.
+                            }
+                        }
+                    }
                     break;
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -151,7 +188,10 @@ public sealed class ControllerChannelService : IControllerChannel
                 finally
                 {
                     if (string.Equals(ActiveEndpoint, endpoint, StringComparison.Ordinal))
+                    {
                         ActiveEndpoint = null;
+                        _activeConnectionId = null;
+                    }
                     socket?.Dispose();
                 }
             }
@@ -320,4 +360,61 @@ public sealed class ControllerChannelService : IControllerChannel
         ConnectionState = state;
         ConnectionStateChanged?.Invoke(state);
     }
+
+    private async Task WaitForPrimaryRecoveryAsync(CancellationToken ct)
+    {
+        if (_webSocketUrls.Count == 0)
+            return;
+
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(_primaryRecoveryProbeInterval, ct);
+                using var client = new HttpClient { Timeout = _endpointConnectTimeout };
+                using var response = await client.GetAsync(BuildHealthUri(_webSocketUrls[0]), ct);
+                if (response.StatusCode is >= HttpStatusCode.OK and < HttpStatusCode.MultipleChoices)
+                    return;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception)
+            {
+                // The primary is still unavailable; remain on the Manager.
+            }
+        }
+    }
+
+    private static Uri BuildHealthUri(string endpoint)
+    {
+        var websocket = new Uri(endpoint);
+        var builder = new UriBuilder(websocket)
+        {
+            Scheme = websocket.Scheme.Equals("wss", StringComparison.OrdinalIgnoreCase) ? "https" : "http",
+            Path = "/api/health",
+            Query = string.Empty,
+        };
+        return builder.Uri;
+    }
+
+    private Dictionary<string, object?> WithConnectionIdentity(object payload)
+    {
+        var result = new Dictionary<string, object?>(StringComparer.Ordinal);
+        var encoded = JsonSerializer.SerializeToElement(payload, ControllerJsonOptions.Default);
+        if (encoded.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in encoded.EnumerateObject())
+                result[property.Name] = property.Value.Clone();
+        }
+        else
+        {
+            result["data"] = encoded.Clone();
+        }
+        result["agent_connection_id"] = _activeConnectionId ?? string.Empty;
+        return result;
+    }
+
+    private static int Clamp(int value, int minimum, int maximum) => Math.Clamp(value, minimum, maximum);
 }
