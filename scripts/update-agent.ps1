@@ -44,6 +44,75 @@ try {
     Copy-Item -Path (Join-Path $bundleDirectory '*') -Destination $installDirectory -Recurse -Force
     Copy-Item -Path $configBackup -Destination $installedConfig -Force
 
+    # The first failover-capable package may replace an older Agent whose local
+    # config only knew its current Controller and Cloud.  The authenticated
+    # Cloud bootstrap is the source of truth for this PC's primary + Manager
+    # pair, so hydrate it here before the replacement reconnects.  This is
+    # deliberately best-effort: a network outage must roll back neither a
+    # healthy binary update nor a known-good endpoint configuration.
+    try {
+        $config = Get-Content -LiteralPath $installedConfig -Raw | ConvertFrom-Json
+        $controller = $config.Controller
+        $externalPcId = ([string]$controller.ExternalPcId).Trim()
+        $agentToken = ([string]$controller.AgentToken).Trim()
+        $bootstrapUrls = @()
+        if (-not [string]::IsNullOrWhiteSpace([string]$controller.BootstrapUrl)) { $bootstrapUrls += [string]$controller.BootstrapUrl }
+        foreach ($item in @($controller.FallbackBootstrapUrls)) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$item)) { $bootstrapUrls += [string]$item }
+        }
+        # Cloud is included explicitly so an old local Controller that does
+        # not yet mirror controller_routes cannot hide the new configuration.
+        $bootstrapUrls += 'https://api-clubpay.justix.uz/api/core/bootstrap'
+        $bootstrapUrls = @($bootstrapUrls | Select-Object -Unique)
+        $routes = $null
+        foreach ($bootstrapUrl in $bootstrapUrls) {
+            try {
+                $separator = if ($bootstrapUrl.Contains('?')) { '&' } else { '?' }
+                $bootstrap = Invoke-RestMethod -Method Get -Uri ($bootstrapUrl + $separator + 'external_pc_id=' + [uri]::EscapeDataString($externalPcId)) -Headers @{ Authorization = "Bearer $agentToken" } -TimeoutSec 10
+                if ($null -ne $bootstrap.controller_routes -and -not [string]::IsNullOrWhiteSpace([string]$bootstrap.controller_routes.primary_controller_url)) {
+                    $routes = $bootstrap.controller_routes
+                    break
+                }
+            }
+            catch { }
+        }
+        if ($null -ne $routes) {
+            $primary = ([string]$routes.primary_controller_url).Trim().TrimEnd('/')
+            $fallback = ([string]$routes.fallback_controller_url).Trim().TrimEnd('/')
+            $primaryUri = [Uri]$primary
+            if (-not [string]::IsNullOrWhiteSpace($primaryUri.Host)) {
+                $primaryHttp = if ($primaryUri.Scheme -eq 'https') { 'https' } else { 'http' }
+                $primaryWs = if ($primaryHttp -eq 'https') { 'wss' } else { 'ws' }
+                $primaryPort = if ($primaryUri.IsDefaultPort) { 8080 } else { $primaryUri.Port }
+                $controller.WebSocketUrl = '{0}://{1}:{2}/api/core/ws' -f $primaryWs, $primaryUri.Host, $primaryPort
+                $controller.BootstrapUrl = '{0}://{1}:{2}/api/core/bootstrap' -f $primaryHttp, $primaryUri.Host, $primaryPort
+                $controller.SessionEndUrl = '{0}://{1}:{2}/api/core/agent/session/end' -f $primaryHttp, $primaryUri.Host, $primaryPort
+                $fallbackWs = @()
+                $fallbackBootstrap = @()
+                $fallbackEnd = @()
+                if (-not [string]::IsNullOrWhiteSpace($fallback)) {
+                    $fallbackUri = [Uri]$fallback
+                    if (-not [string]::IsNullOrWhiteSpace($fallbackUri.Host)) {
+                        $fallbackHttp = if ($fallbackUri.Scheme -eq 'https') { 'https' } else { 'http' }
+                        $fallbackWsScheme = if ($fallbackHttp -eq 'https') { 'wss' } else { 'ws' }
+                        $fallbackPort = if ($fallbackUri.IsDefaultPort) { 8080 } else { $fallbackUri.Port }
+                        $fallbackWs += '{0}://{1}:{2}/api/core/ws' -f $fallbackWsScheme, $fallbackUri.Host, $fallbackPort
+                        $fallbackBootstrap += '{0}://{1}:{2}/api/core/bootstrap' -f $fallbackHttp, $fallbackUri.Host, $fallbackPort
+                        $fallbackEnd += '{0}://{1}:{2}/api/core/agent/session/end' -f $fallbackHttp, $fallbackUri.Host, $fallbackPort
+                    }
+                }
+                $fallbackWs += 'wss://api-clubpay.justix.uz/api/core/ws'
+                $fallbackBootstrap += 'https://api-clubpay.justix.uz/api/core/bootstrap'
+                $fallbackEnd += 'https://api-clubpay.justix.uz/api/core/agent/session/end'
+                $controller.FallbackWebSocketUrls = @($fallbackWs | Select-Object -Unique)
+                $controller.FallbackBootstrapUrls = @($fallbackBootstrap | Select-Object -Unique)
+                $controller.FallbackSessionEndUrls = @($fallbackEnd | Select-Object -Unique)
+                $config | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $installedConfig -Encoding utf8
+            }
+        }
+    }
+    catch { }
+
     $healthPath = Join-Path $installDirectory 'runtime\agent-health.json'
     New-Item -ItemType Directory -Path (Split-Path -Parent $healthPath) -Force | Out-Null
     Remove-Item -Path $healthPath -Force -ErrorAction SilentlyContinue
