@@ -50,7 +50,8 @@
         </Grid>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,40,0,0">
           <Border CornerRadius="8" BorderThickness="1" Padding="20,8" Background="#14FFFFFF" BorderBrush="#5900D4FF" HorizontalAlignment="Center" Margin="0,0,0,14"><TextBlock Text="{Binding ZoneLabel}" Foreground="#FFCFE9F5" FontFamily="{StaticResource FontChakra}" FontSize="22" FontWeight="Medium"/></Border>
-          <TextBlock Text="{Binding PcId}" HorizontalAlignment="Center" Foreground="White" FontFamily="{StaticResource FontChakra}" FontSize="100" FontWeight="Bold"/>
+          <!-- Canary marker: makes the first unattended rollout visible on the pilot PC. -->
+          <TextBlock HorizontalAlignment="Center" Foreground="White" FontFamily="{StaticResource FontChakra}" FontSize="100" FontWeight="Bold"><Run Text="{Binding PcId}"/><Run Text=" (1)"/></TextBlock>
           <!-- QR payment entry is intentionally hidden while ClubPay payment
                and session actions are handled in the mobile application.
           <StackPanel Margin="0,38,0,0"><Border CornerRadius="20" Background="White" Padding="22" HorizontalAlignment="Center"><Image Source="{Binding PayQrImage}" Width="300" Height="300" RenderOptions.BitmapScalingMode="NearestNeighbor"/></Border><TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ScanToPay], Mode=OneWay}" HorizontalAlignment="Center" Margin="0,18,0,0" Foreground="{StaticResource GreenBrush}" FontFamily="{StaticResource FontChakra}" FontSize="26" FontWeight="SemiBold"/></StackPanel> -->
