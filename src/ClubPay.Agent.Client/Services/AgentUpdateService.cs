@@ -42,13 +42,16 @@ public sealed class AgentUpdateService : IAgentUpdateService
             var scriptPath = Path.Combine(updatesDirectory, "agent-" + SafeFilePart(payload.Version) + ".ps1");
             File.WriteAllText(scriptPath, Script(payload), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
 
-            Process.Start(new ProcessStartInfo
+            var updater = Process.Start(new ProcessStartInfo
             {
                 FileName = "powershell.exe",
                 Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
                 UseShellExecute = true,
                 CreateNoWindow = true,
             });
+            if (updater is null)
+                throw new InvalidOperationException("ClubPay Agent updater could not be started.");
+
             _scheduledVersion = payload.Version;
             return new AgentUpdateResult("scheduled", payload.Version);
         }
