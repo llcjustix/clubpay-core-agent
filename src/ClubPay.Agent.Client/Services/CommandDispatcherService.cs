@@ -114,7 +114,10 @@ public sealed class CommandDispatcherService(
     private CommandResultEnvelope HandleUpdateAgent(CommandEnvelope command)
     {
         var status = coordinator.GetStatus();
-        if (status.PcState is PcState.Occupied or PcState.Frozen)
+        // The idle lock screen is represented as Frozen. It has no running
+        // session and must accept a signed background replacement; only an
+        // actual occupied session defers the update.
+        if (status.PcState is PcState.Occupied)
             return Error(command, ErrorCode.PcBusy, "Agent update waits until the current session ends");
 
         var payload = Deserialize<AgentUpdatePayload>(command);
