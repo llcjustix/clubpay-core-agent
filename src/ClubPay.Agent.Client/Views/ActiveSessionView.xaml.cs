@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 
 namespace ClubPay.Agent.Client.Views;
 
@@ -15,39 +14,19 @@ public partial class ActiveSessionView : UserControl
 
     private void OnMenuClicked(object sender, RoutedEventArgs e)
     {
-        if (sender is not Control control)
-            return;
+        SessionActionMenu.Visibility = SessionActionMenu.Visibility == Visibility.Visible
+            ? Visibility.Collapsed
+            : Visibility.Visible;
 
-        // A WPF ContextMenu can only have one logical parent.  Do not keep a
-        // shared instance in XAML or reuse a previously attached menu.
-        var menu = new ContextMenu
-        {
-            PlacementTarget = control
-        };
-
-        var endSession = new MenuItem();
-        endSession.SetBinding(
-            MenuItem.HeaderProperty,
-            new Binding("[EndSession]")
-            {
-                Source = Application.Current?.TryFindResource("Loc"),
-                Mode = BindingMode.OneWay
-            });
-        endSession.Click += OnEndSessionClicked;
-        menu.Items.Add(endSession);
-
-        menu.Closed += (_, _) =>
-        {
-            if (ReferenceEquals(control.ContextMenu, menu))
-                control.ContextMenu = null;
-        };
-
-        control.ContextMenu = menu;
-        menu.IsOpen = true;
+        // Reassert the dock after any player control is used. Its own topmost
+        // HWND can otherwise fall behind the fullscreen launcher after RDP has
+        // processed a popup/focus transition.
+        PlayerDockWindow.Instance?.ShowDock();
     }
 
     private async void OnEndSessionClicked(object sender, RoutedEventArgs e)
     {
+        SessionActionMenu.Visibility = Visibility.Collapsed;
         if (EndSessionRequested is null)
             return;
 

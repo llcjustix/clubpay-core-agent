@@ -33,6 +33,18 @@ public partial class PlayerDockWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e) => PositionAtBottom();
 
+    internal void RefreshPosition()
+    {
+        PositionAtBottom();
+        if (IsVisible)
+        {
+            // Display changes can reset topmost ordering on RDP. Keep the dock
+            // above the player window without activating either window.
+            Topmost = false;
+            Topmost = true;
+        }
+    }
+
     private void PositionAtBottom()
     {
         // The dock belongs to the primary player display. Using the virtual desktop

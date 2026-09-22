@@ -13,6 +13,7 @@ public partial class GameLauncherWindow : Window
     private readonly IClientSessionEndService _sessionEnd;
     private readonly QrCodeService _qr;
     private readonly LocalizationService _localizer;
+    private readonly IWindowsShellService _windowsShell;
     private bool _externalAppMode;
 
     public GameLauncherWindow(
@@ -20,13 +21,15 @@ public partial class GameLauncherWindow : Window
         MainViewModel main,
         IClientSessionEndService sessionEnd,
         QrCodeService qr,
-        LocalizationService localizer)
+        LocalizationService localizer,
+        IWindowsShellService windowsShell)
     {
         Instance    = this;
         DataContext = vm;
         _sessionEnd = sessionEnd;
         _qr = qr;
         _localizer = localizer;
+        _windowsShell = windowsShell;
         InitializeComponent();
         SessionCard.DataContext = main.ActiveSession;
         SessionCard.EndSessionRequested += RequestSessionEndAsync;
@@ -41,6 +44,7 @@ public partial class GameLauncherWindow : Window
             // slow, minimised, or returns a transient HWND, the player never gets
             // a blank desktop with only the dock left behind.
             PlayerDockWindow.Instance?.ShowDock();
+            _windowsShell.HideTaskbars();
         });
 
         // Game exited or user clicked "return" → show launcher again
@@ -105,6 +109,7 @@ public partial class GameLauncherWindow : Window
         // drop behind Steam instead of covering it with an opaque surface.
         Topmost = false;
         SetNoActivate(true);
+        _windowsShell.HideTaskbars();
     }
 
     internal void EnterLauncherMode()

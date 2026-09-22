@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using System.Windows;
+using Microsoft.Win32;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -117,6 +118,12 @@ public partial class App : Application
             kiosk.Show();
             kiosk.Activate();
 
+            // A Windows App/RDP window can change the guest resolution without
+            // restarting the Agent. Re-fit every player-facing surface so a
+            // stale virtual-desktop size cannot create clipped content or an
+            // orphaned dock.
+            SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+
             _ = _services.GetRequiredService<MainViewModel>().InitializeAsync(_startupCts.Token);
         }
         catch (Exception ex)
@@ -192,6 +199,7 @@ public partial class App : Application
 
     protected override async void OnExit(ExitEventArgs e)
     {
+        SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         _startupCts?.Cancel();
         if (_services is not null)
         {
@@ -221,6 +229,23 @@ public partial class App : Application
             }
         }
         base.OnExit(e);
+    }
+
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_services is null)
+                return;
+
+            var kiosk = _services.GetRequiredService<KioskWindow>();
+            var launcher = _services.GetRequiredService<GameLauncherWindow>();
+            if (kiosk.IsVisible)
+                FullScreenWindow.CoverPrimaryScreen(kiosk);
+            if (launcher.IsVisible)
+                FullScreenWindow.CoverPrimaryScreen(launcher);
+            _services.GetRequiredService<PlayerDockWindow>().RefreshPosition();
+        });
     }
 
     // ─── Installer argument handling ─────────────────────────────────────────

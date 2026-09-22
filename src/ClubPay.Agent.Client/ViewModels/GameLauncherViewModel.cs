@@ -315,12 +315,16 @@ public partial class GameLauncherViewModel : ObservableObject
                 if (process.HasExited || process.MainWindowHandle == nint.Zero)
                     continue;
 
-                NativeLauncher.RestoreAndForeground(process.MainWindowHandle);
                 // Process.Start may return a short-lived bootstrapper. Track the
                 // process that actually owns the visible player window instead,
                 // so closing that application removes its dock entry.
                 _runningProcesses[app] = process;
                 RunningApp = app;
+                // Let the fullscreen Agent drop behind the player window before
+                // requesting foreground. Doing this afterwards lets the WPF
+                // launcher win the z-order race on slower Steam startups.
+                AppLaunched(app);
+                NativeLauncher.RestoreAndForeground(process.MainWindowHandle);
                 return true;
             }
             catch (Exception ex)

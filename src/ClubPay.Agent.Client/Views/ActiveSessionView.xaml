@@ -9,7 +9,7 @@
     <cv:TimerToBrushConverter        x:Key="TimerBrush"/>
   </UserControl.Resources>
 
-  <StackPanel>
+  <Grid>
 
     <!-- MAIN WIDGET CARD -->
     <Border CornerRadius="22" BorderThickness="1" BorderBrush="#4700D4FF" Padding="16">
@@ -23,7 +23,8 @@
         <DropShadowEffect Color="#FF00D4FF" BlurRadius="50" ShadowDepth="0" Opacity="0.07"/>
       </Border.Effect>
 
-      <StackPanel>
+      <Grid>
+        <StackPanel>
         <!-- Header row -->
         <Grid>
           <Grid.ColumnDefinitions>
@@ -72,8 +73,33 @@
         <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[ManageSessionOnPhone], Mode=OneWay}"
                    Margin="0,4,0,0" Foreground="{StaticResource TextMuted}"
                    FontFamily="{StaticResource FontMono}" FontSize="11" TextWrapping="Wrap"/>
-      </StackPanel>
+        </StackPanel>
+
+        <!-- Keep the player action inside this window. A native ContextMenu is
+             a separate HWND and can steal z-order from the dock in RDP. -->
+        <Border x:Name="SessionActionMenu"
+                Visibility="Collapsed"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="0,40,0,0"
+                Background="#FF101722"
+                BorderBrush="#6600D4FF"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="4">
+          <Button Padding="12,8"
+                  Background="Transparent"
+                  BorderThickness="0"
+                  Foreground="White"
+                  FontFamily="{StaticResource FontChakra}"
+                  FontSize="13"
+                  Cursor="Hand"
+                  Click="OnEndSessionClicked">
+            <TextBlock Text="{Binding Source={StaticResource Loc}, Path=[EndSession], Mode=OneWay}"/>
+          </Button>
+        </Border>
+      </Grid>
     </Border>
 
-  </StackPanel>
+  </Grid>
 </UserControl>
