@@ -226,7 +226,6 @@ public partial class GameLauncherViewModel : ObservableObject
             if (TryFocusRunningApp(target))
             {
                 EnsureLifetimeMonitor(target);
-                AppLaunched(target);
                 return true;
             }
 
@@ -324,7 +323,8 @@ public partial class GameLauncherViewModel : ObservableObject
                 // requesting foreground. Doing this afterwards lets the WPF
                 // launcher win the z-order race on slower Steam startups.
                 AppLaunched(app);
-                NativeLauncher.RestoreAndForeground(process.MainWindowHandle);
+                if (!NativeLauncher.RestoreAndForeground(process.MainWindowHandle))
+                    continue;
                 return true;
             }
             catch (Exception ex)
@@ -538,6 +538,7 @@ internal static class NativeLauncher
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
     private const uint SwpShowWindow = 0x0040;
+    private const uint AsfwAny = 0xFFFFFFFF;
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     public static extern bool ShowWindow(nint hWnd, int nCmdShow);
@@ -552,6 +553,24 @@ internal static class NativeLauncher
     private static extern bool SetForegroundWindow(nint hWnd);
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint hWnd, nint processId);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint SetFocus(nint hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool AllowSetForegroundWindow(uint processId);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter,
         int x, int y, int cx, int cy, uint flags);
 
@@ -564,16 +583,42 @@ internal static class NativeLauncher
     internal static bool IsVisibleWindow(nint hWnd) =>
         hWnd != nint.Zero && IsWindow(hWnd) && IsWindowVisible(hWnd);
 
-    public static void RestoreAndForeground(nint hWnd)
+    public static bool RestoreAndForeground(nint hWnd)
     {
-        // This is called from a player's explicit click, which lets Windows accept
-        // the foreground request without exposing Explorer/taskbar in kiosk mode.
+        if (!IsVisibleWindow(hWnd))
+            return false;
+
+        // A shell URI (notably steam://) creates its UI in a different process.
+        // SetForegroundWindow may silently reject that cross-process request under
+        // Windows' foreground-lock rules. Temporarily join the input queues of the
+        // currently active window and the Agent, then detach immediately; this is
+        // the same scoped hand-off Windows performs for a user taskbar click.
         ShowWindowAsync(hWnd, SW_RESTORE);
-        // Keep the ClubPay dock above the player application. HWND_TOP restores
-        // Steam among normal windows; HWND_TOPMOST would cover the dock again.
+        AllowSetForegroundWindow(AsfwAny);
         SetWindowPos(hWnd, HwndTop, 0, 0, 0, 0, SwpNoSize | SwpNoMove | SwpShowWindow);
-        BringWindowToTop(hWnd);
-        SetForegroundWindow(hWnd);
+
+        var currentThread = GetCurrentThreadId();
+        var foreground = GetForegroundWindow();
+        var foregroundThread = foreground == nint.Zero ? 0 : GetWindowThreadProcessId(foreground, nint.Zero);
+        var targetThread = GetWindowThreadProcessId(hWnd, nint.Zero);
+        var attachedToForeground = foregroundThread != 0 && foregroundThread != currentThread &&
+                                   AttachThreadInput(currentThread, foregroundThread, true);
+        var attachedToTarget = targetThread != 0 && targetThread != currentThread && targetThread != foregroundThread &&
+                               AttachThreadInput(currentThread, targetThread, true);
+        try
+        {
+            BringWindowToTop(hWnd);
+            SetForegroundWindow(hWnd);
+            SetFocus(hWnd);
+            return GetForegroundWindow() == hWnd;
+        }
+        finally
+        {
+            if (attachedToTarget)
+                AttachThreadInput(currentThread, targetThread, false);
+            if (attachedToForeground)
+                AttachThreadInput(currentThread, foregroundThread, false);
+        }
     }
 }
 

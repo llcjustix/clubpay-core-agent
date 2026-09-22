@@ -15,6 +15,7 @@ public partial class GameLauncherWindow : Window
     private readonly LocalizationService _localizer;
     private readonly IWindowsShellService _windowsShell;
     private bool _externalAppMode;
+    private int _externalAppModeRevision;
 
     public GameLauncherWindow(
         GameLauncherViewModel vm,
@@ -45,6 +46,7 @@ public partial class GameLauncherWindow : Window
             // a blank desktop with only the dock left behind.
             PlayerDockWindow.Instance?.ShowDock();
             _windowsShell.HideTaskbars();
+            _ = HideTaskbarsAfterExternalAppTakesForegroundAsync(_externalAppModeRevision);
         });
 
         // Game exited or user clicked "return" → show launcher again
@@ -105,6 +107,7 @@ public partial class GameLauncherWindow : Window
     internal void EnterExternalAppMode()
     {
         _externalAppMode = true;
+        _externalAppModeRevision++;
         // The dock is a separate topmost window. This full-screen window can now
         // drop behind Steam instead of covering it with an opaque surface.
         Topmost = false;
@@ -112,9 +115,20 @@ public partial class GameLauncherWindow : Window
         _windowsShell.HideTaskbars();
     }
 
+    private async Task HideTaskbarsAfterExternalAppTakesForegroundAsync(int revision)
+    {
+        // Steam can cause Explorer to recreate/show its taskbar while its first
+        // visible window claims foreground. Re-hide it after that hand-off so the
+        // ClubPay dock remains the only launcher surface at the bottom of screen.
+        await Task.Delay(500);
+        if (_externalAppMode && revision == _externalAppModeRevision)
+            _windowsShell.HideTaskbars();
+    }
+
     internal void EnterLauncherMode()
     {
         _externalAppMode = false;
+        _externalAppModeRevision++;
         SetNoActivate(false);
         Topmost = true;
     }
