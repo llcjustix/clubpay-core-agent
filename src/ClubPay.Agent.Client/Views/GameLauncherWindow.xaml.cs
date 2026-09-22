@@ -81,7 +81,7 @@ public partial class GameLauncherWindow : Window
         try
         {
             var result = await _sessionEnd.EndCurrentSessionAsync();
-            if (!result.IsProfileSession)
+            if (result.HasVoucherToShow)
                 new VoucherDeliveryDialog(result, _qr).ShowDialog();
         }
         catch (Exception ex)

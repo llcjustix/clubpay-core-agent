@@ -7,7 +7,14 @@ public sealed record ClientSessionEndResult(
     int ProfileBalanceAddedSeconds,
     string DeliveryStatus,
     string? TelegramLink,
-    string? TelegramBotUsername);
+    string? TelegramBotUsername)
+{
+    // The completion dialog is meaningful only when a guest has an actual
+    // voucher to keep. A zero-balance response must return straight to the
+    // locked screen, even if a stale Controller cannot identify the profile.
+    public bool HasVoucherToShow => !IsProfileSession &&
+        (VoucherSeconds > 0 || !string.IsNullOrWhiteSpace(VoucherCode));
+}
 
 /// <summary>
 /// Ends the current kiosk session through Core. Core remains the authority: it commands the Agent
