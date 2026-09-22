@@ -63,6 +63,8 @@ jobs:
           # Always bundle the newest published Controller release. The Controller
           # release is created before the Agent release, so a Manager installer
           # never stays pinned to a historical controller version; the package is rebuilt after each Controller release.
+          # Keep this release trigger explicit: the embedded fallback Controller
+          # must receive reservation-state fixes together with the Manager.
           $controllerRelease = Invoke-RestMethod -Uri 'https://api.github.com/repos/llcjustix/clubpay-platform/releases/latest'
           $controllerAsset = @($controllerRelease.assets | Where-Object { $_.name -eq 'ClubPay-Controller-win-x64.zip' })[0]
           if ($null -eq $controllerAsset -or [string]::IsNullOrWhiteSpace($controllerAsset.browser_download_url)) { throw 'latest Controller release has no Windows asset' }
