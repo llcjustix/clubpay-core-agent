@@ -38,7 +38,7 @@ public partial class GameLauncherWindow : Window
         // Keep Agent as the protected fullscreen background, but make that background unable
         // to steal activation while Steam/a game is in front. A click outside a windowed game
         // must therefore stay with the external application instead of hiding it behind Agent.
-        vm.AppLaunched += _ => Dispatcher.Invoke(() =>
+        vm.AppLaunched += app => Dispatcher.Invoke(() =>
         {
             EnterExternalAppMode();
             // Keep the launcher rendered as the fallback background. If an app is
