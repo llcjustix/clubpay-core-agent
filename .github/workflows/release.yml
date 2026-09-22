@@ -66,6 +66,7 @@ jobs:
           # Keep this release trigger explicit: the embedded fallback Controller
           # must receive reservation-state fixes together with the Manager.
           $controllerRelease = Invoke-RestMethod -Uri 'https://api.github.com/repos/llcjustix/clubpay-platform/releases/latest'
+          Write-Host "Bundling immutable Controller release $($controllerRelease.tag_name) into the Manager package."
           $controllerAsset = @($controllerRelease.assets | Where-Object { $_.name -eq 'ClubPay-Controller-win-x64.zip' })[0]
           if ($null -eq $controllerAsset -or [string]::IsNullOrWhiteSpace($controllerAsset.browser_download_url)) { throw 'latest Controller release has no Windows asset' }
           Invoke-WebRequest -Uri $controllerAsset.browser_download_url -OutFile dist/controller.zip
