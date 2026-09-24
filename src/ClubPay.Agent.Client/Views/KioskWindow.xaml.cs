@@ -12,6 +12,7 @@ public partial class KioskWindow : Window
     private MainViewModel Vm => (MainViewModel)DataContext;
     private readonly bool _maintenanceExitEnabled;
     private readonly IWindowsShellService _windowsShell;
+    private int _transitionVersion;
 
     public KioskWindow(MainViewModel vm, IConfiguration configuration, IWindowsShellService windowsShell)
     {
@@ -24,7 +25,7 @@ public partial class KioskWindow : Window
         Vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.IsActive))
-                UpdateVisibility();
+                _ = UpdateVisibilityAsync(++_transitionVersion);
         };
     }
 
@@ -72,36 +73,46 @@ public partial class KioskWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
         => FullScreenWindow.CoverPrimaryScreen(this);
 
-    private void UpdateVisibility()
+    private async Task UpdateVisibilityAsync(int transitionVersion)
     {
         if (Vm.IsActive)
         {
-            // The launcher is the active-session shell. Keeping this full-screen
-            // KioskWindow visible below it works only while the launcher is topmost;
-            // once a player app opens, the launcher becomes a normal window and the
-            // empty kiosk background would cover it. Render the launcher first, then
-            // hide this window completely for the active-session lifetime.
-            Topmost = false;
+            // Do not hide the lock screen yet. IsVisible only tells us that WPF has
+            // created the launcher window, not that it has painted a frame. Hiding
+            // KioskWindow first exposed Explorer for one transition frame on slower
+            // VMs/RDP sessions.
             _windowsShell.ExitMaintenanceMode();
             GameLauncherWindow.Instance?.ShowLauncherSurface();
             PlayerDockWindow.Instance?.ShowDock();
-            Dispatcher.BeginInvoke(() =>
-            {
-                if (Vm.IsActive && GameLauncherWindow.Instance?.IsVisible == true)
-                    Hide();
-            }, DispatcherPriority.Render);
+            await WaitForRenderedFrameAsync();
+
+            if (transitionVersion == _transitionVersion && Vm.IsActive &&
+                GameLauncherWindow.Instance?.IsVisible == true)
+                Hide();
         }
         else
         {
-            GameLauncherWindow.Instance?.EnterLauncherMode();
-            GameLauncherWindow.Instance?.Hide();
-            PlayerDockWindow.Instance?.Hide();
+            // The same hand-off in reverse: make the lock/freeze screen topmost and
+            // wait for its first frame before removing the launcher and player dock.
             Topmost = true;
             WindowState = WindowState.Normal;
-            Show();
+            if (!IsVisible)
+                Show();
+            FullScreenWindow.CoverPrimaryScreen(this);
             Activate();
             Focus();
             _windowsShell.ExitMaintenanceMode();
+            await WaitForRenderedFrameAsync();
+
+            if (transitionVersion != _transitionVersion || Vm.IsActive)
+                return;
+
+            GameLauncherWindow.Instance?.EnterLauncherMode();
+            GameLauncherWindow.Instance?.Hide();
+            PlayerDockWindow.Instance?.Hide();
         }
     }
+
+    private Task WaitForRenderedFrameAsync() =>
+        Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ApplicationIdle).Task;
 }
