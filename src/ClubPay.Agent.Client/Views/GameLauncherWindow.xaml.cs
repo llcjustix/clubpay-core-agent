@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using ClubPay.Agent.Client.Services;
 using ClubPay.Agent.Client.ViewModels;
 
@@ -14,8 +15,8 @@ public partial class GameLauncherWindow : Window
     private readonly QrCodeService _qr;
     private readonly LocalizationService _localizer;
     private readonly IWindowsShellService _windowsShell;
+    private readonly DispatcherTimer _externalAppUiTimer;
     private bool _externalAppMode;
-    private int _externalAppModeRevision;
 
     public GameLauncherWindow(
         GameLauncherViewModel vm,
@@ -35,18 +36,29 @@ public partial class GameLauncherWindow : Window
         SessionCard.DataContext = main.ActiveSession;
         SessionCard.EndSessionRequested += RequestSessionEndAsync;
 
+        // Explorer and Steam can both reorder windows *after* their initial
+        // foreground transition.  A one-time 500 ms correction is therefore not
+        // sufficient: keep only the customer-facing surfaces reinforced while an
+        // external application is open, without ever activating the Agent window.
+        _externalAppUiTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(350)
+        };
+        _externalAppUiTimer.Tick += (_, _) => KeepExternalAppSurfaceStable();
+
         // Keep Agent as the protected fullscreen background, but make that background unable
         // to steal activation while Steam/a game is in front. A click outside a windowed game
         // must therefore stay with the external application instead of hiding it behind Agent.
-        vm.AppLaunched += app => Dispatcher.Invoke(() =>
+        vm.ExternalAppPreparationRequested += _ => Dispatcher.Invoke(EnterExternalAppMode);
+        vm.AppLaunched += _ => Dispatcher.Invoke(() =>
         {
-            EnterExternalAppMode();
             // Keep the launcher rendered as the fallback background. If an app is
             // slow, minimised, or returns a transient HWND, the player never gets
             // a blank desktop with only the dock left behind.
             PlayerDockWindow.Instance?.ShowDock();
-            _windowsShell.HideTaskbars();
-            _ = HideTaskbarsAfterExternalAppTakesForegroundAsync(_externalAppModeRevision);
+            KeepExternalAppSurfaceStable();
+            if (!_externalAppUiTimer.IsEnabled)
+                _externalAppUiTimer.Start();
         });
 
         // Game exited or user clicked "return" → show launcher again
@@ -76,6 +88,7 @@ public partial class GameLauncherWindow : Window
         Topmost = true;
         Activate();
         Focus();
+        _windowsShell.HideTaskbars();
     }
 
     private async Task RequestSessionEndAsync()
@@ -107,7 +120,6 @@ public partial class GameLauncherWindow : Window
     internal void EnterExternalAppMode()
     {
         _externalAppMode = true;
-        _externalAppModeRevision++;
         // The dock is a separate topmost window. This full-screen window can now
         // drop behind Steam instead of covering it with an opaque surface.
         Topmost = false;
@@ -115,20 +127,21 @@ public partial class GameLauncherWindow : Window
         _windowsShell.HideTaskbars();
     }
 
-    private async Task HideTaskbarsAfterExternalAppTakesForegroundAsync(int revision)
+    private void KeepExternalAppSurfaceStable()
     {
-        // Steam can cause Explorer to recreate/show its taskbar while its first
-        // visible window claims foreground. Re-hide it after that hand-off so the
-        // ClubPay dock remains the only launcher surface at the bottom of screen.
-        await Task.Delay(500);
-        if (_externalAppMode && revision == _externalAppModeRevision)
-            _windowsShell.HideTaskbars();
+        if (!_externalAppMode)
+            return;
+
+        // Do not call Activate/Focus here: this is deliberately a non-activating
+        // z-order correction so a player can type in Steam or a game uninterrupted.
+        _windowsShell.HideTaskbars();
+        PlayerDockWindow.Instance?.KeepAbovePlayerWindows();
     }
 
     internal void EnterLauncherMode()
     {
         _externalAppMode = false;
-        _externalAppModeRevision++;
+        _externalAppUiTimer.Stop();
         SetNoActivate(false);
         Topmost = true;
     }

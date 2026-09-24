@@ -24,7 +24,11 @@ public partial class GameLauncherViewModel : ObservableObject
     [ObservableProperty] private string?      _launchError;
 
     public event Action?             ReturnRequested;   // show launcher window
-    // Raised only after a real top-level player window was found and restored.
+    // Raised after the launcher has dropped behind an external app, but before the
+    // foreground hand-off.  The WPF launcher must not remain topmost while Windows
+    // is restoring a Steam/game window.
+    public event Action<LauncherApp> ExternalAppPreparationRequested = delegate { };
+    // Raised only after a real top-level player window was restored.
     // Starting Steam.exe alone is not enough: on a VM its UI can appear seconds later.
     public event Action<LauncherApp> AppLaunched = delegate { };
 
@@ -311,7 +315,7 @@ public partial class GameLauncherViewModel : ObservableObject
                     continue;
 
                 process.Refresh();
-                if (process.HasExited || process.MainWindowHandle == nint.Zero)
+                if (process.HasExited || !NativeLauncher.IsVisibleWindow(process.MainWindowHandle))
                     continue;
 
                 // Process.Start may return a short-lived bootstrapper. Track the
@@ -322,9 +326,10 @@ public partial class GameLauncherViewModel : ObservableObject
                 // Let the fullscreen Agent drop behind the player window before
                 // requesting foreground. Doing this afterwards lets the WPF
                 // launcher win the z-order race on slower Steam startups.
-                AppLaunched(app);
+                ExternalAppPreparationRequested(app);
                 if (!NativeLauncher.RestoreAndForeground(process.MainWindowHandle))
                     continue;
+                AppLaunched(app);
                 return true;
             }
             catch (Exception ex)
@@ -351,6 +356,10 @@ public partial class GameLauncherViewModel : ObservableObject
         {
             UntrackApp(app);
             LaunchError = _localizer.Format("LaunchFailed", app.Name);
+            // A failed foreground hand-off must leave the usable launcher on screen.
+            // Without this the kiosk window is hidden for the active session and the
+            // player sees only the desktop after a slow/failed Steam startup.
+            ReturnRequested?.Invoke();
         }
     }
 

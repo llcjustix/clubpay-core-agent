@@ -2,12 +2,19 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Interop;
+using System.Runtime.InteropServices;
 using ClubPay.Agent.Client.ViewModels;
 
 namespace ClubPay.Agent.Client.Views;
 
 public partial class PlayerDockWindow : Window
 {
+    private static readonly nint HwndTopmost = new(-1);
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoActivate = 0x0010;
+    private const uint SwpShowWindow = 0x0040;
     public static PlayerDockWindow? Instance { get; private set; }
     private GameLauncherViewModel Vm => (GameLauncherViewModel)DataContext;
 
@@ -16,6 +23,7 @@ public partial class PlayerDockWindow : Window
         Instance = this;
         DataContext = vm;
         InitializeComponent();
+        Deactivated += (_, _) => Dispatcher.BeginInvoke(KeepAbovePlayerWindows);
     }
 
     internal void ShowDock()
@@ -24,11 +32,7 @@ public partial class PlayerDockWindow : Window
         if (!IsVisible)
             Show();
 
-        // The launcher is also topmost. Reapply the dock's z-order on every
-        // return so it cannot slip behind the fullscreen window after a game
-        // has been minimised.
-        Topmost = false;
-        Topmost = true;
+        KeepAbovePlayerWindows();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e) => PositionAtBottom();
@@ -38,11 +42,23 @@ public partial class PlayerDockWindow : Window
         PositionAtBottom();
         if (IsVisible)
         {
-            // Display changes can reset topmost ordering on RDP. Keep the dock
-            // above the player window without activating either window.
-            Topmost = false;
-            Topmost = true;
+            KeepAbovePlayerWindows();
         }
+    }
+
+    internal void KeepAbovePlayerWindows()
+    {
+        if (!IsVisible)
+            return;
+
+        // WPF's Topmost property is not enough after Steam creates/reparents its
+        // window or Explorer recreates the taskbar over RDP. Reapply HWND_TOPMOST
+        // directly, with SWP_NOACTIVATE so the dock never steals keyboard focus
+        // from the player application.
+        Topmost = true;
+        var hwnd = new WindowInteropHelper(this).EnsureHandle();
+        SetWindowPos(hwnd, HwndTopmost, 0, 0, 0, 0,
+            SwpNoSize | SwpNoMove | SwpNoActivate | SwpShowWindow);
     }
 
     private void PositionAtBottom()
@@ -84,4 +100,8 @@ public partial class PlayerDockWindow : Window
         dockItem.ContextMenu = menu;
         menu.IsOpen = true;
     }
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(
+        nint hWnd, nint hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
 }
