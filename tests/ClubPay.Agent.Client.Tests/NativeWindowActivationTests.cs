@@ -45,4 +45,17 @@ public sealed class NativeWindowActivationTests
         Assert.Equal(240, GameLauncherViewModel.WindowStartupWaitAttempts(steam));
         Assert.Equal(80, GameLauncherViewModel.WindowStartupWaitAttempts(other));
     }
+
+    [Fact]
+    public void DiscordUpdaterLaunch_TracksTheDiscordClientWindow()
+    {
+        var app = new ClubPay.Agent.Core.Models.LauncherApp(
+            "Discord",
+            @"C:\\Users\\Player\\AppData\\Local\\Discord\\Update.exe",
+            "--processStart Discord.exe");
+
+        var names = GameLauncherViewModel.RelatedProcessNames(app);
+
+        Assert.Equal(["discord", "update"], names);
+    }
 }

@@ -42,6 +42,7 @@ public partial class GameLauncherViewModel : ObservableObject
     private readonly ILogger<GameLauncherViewModel> _logger;
     private readonly IConfiguration _config;
     private readonly SteamGameDiscoveryService _steamGames;
+    private readonly DesktopAppDiscoveryService _desktopApps;
     private readonly LauncherCatalogService _catalog;
     private readonly LocalizationService _localizer;
     private readonly Dictionary<string, string> _catalogCategories = new(StringComparer.OrdinalIgnoreCase);
@@ -52,6 +53,7 @@ public partial class GameLauncherViewModel : ObservableObject
     public GameLauncherViewModel(
         IConfiguration config,
         SteamGameDiscoveryService steamGames,
+        DesktopAppDiscoveryService desktopApps,
         LauncherCatalogService catalog,
         LocalizationService localizer,
         ILogger<GameLauncherViewModel> logger)
@@ -59,6 +61,7 @@ public partial class GameLauncherViewModel : ObservableObject
         _logger = logger;
         _config = config;
         _steamGames = steamGames;
+        _desktopApps = desktopApps;
         _catalog = catalog;
         _localizer = localizer;
         ClubName = config["Agent:ClubName"] ?? "ClubPay";
@@ -90,6 +93,10 @@ public partial class GameLauncherViewModel : ObservableObject
             if (IsPlayerLaunchable(app) && File.Exists(app.ExePath)) discovered.Add(app);
         }
         foreach (var app in _steamGames.Discover())
+            if (!discovered.Any(existing => string.Equals(existing.Args, app.Args, StringComparison.OrdinalIgnoreCase) &&
+                                            string.Equals(existing.ExePath, app.ExePath, StringComparison.OrdinalIgnoreCase)))
+                discovered.Add(app);
+        foreach (var app in _desktopApps.Discover())
             if (!discovered.Any(existing => string.Equals(existing.Args, app.Args, StringComparison.OrdinalIgnoreCase) &&
                                             string.Equals(existing.ExePath, app.ExePath, StringComparison.OrdinalIgnoreCase)))
                 discovered.Add(app);
@@ -497,9 +504,9 @@ public partial class GameLauncherViewModel : ObservableObject
             try
             {
                 process.Refresh();
-                if (!process.HasExited && process.MainWindowHandle != nint.Zero)
+                if (!process.HasExited && NativeLauncher.TryFindVisibleTopLevelWindow(process.Id, out var visibleWindow))
                 {
-                    handle = process.MainWindowHandle;
+                    handle = visibleWindow;
                     return true;
                 }
             }
@@ -514,10 +521,10 @@ public partial class GameLauncherViewModel : ObservableObject
                 {
                     using (candidate)
                     {
-                        if (candidate.MainWindowHandle == nint.Zero)
+                        if (!NativeLauncher.TryFindVisibleTopLevelWindow(candidate.Id, out var visibleWindow))
                             continue;
 
-                        handle = candidate.MainWindowHandle;
+                        handle = visibleWindow;
                         return true;
                     }
                 }
@@ -538,6 +545,11 @@ public partial class GameLauncherViewModel : ObservableObject
     private static bool IsSteamLaunch(LauncherApp app) =>
         Path.GetFileName(app.ExePath).Equals("steam.exe", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsDiscordLaunch(LauncherApp app) =>
+        app.Name.Equals("Discord", StringComparison.OrdinalIgnoreCase) &&
+        Path.GetFileName(app.ExePath).Equals("update.exe", StringComparison.OrdinalIgnoreCase) &&
+        app.Args.Contains("Discord.exe", StringComparison.OrdinalIgnoreCase);
+
     internal static IReadOnlyList<string> RelatedProcessNames(LauncherApp app)
     {
         var processName = Path.GetFileNameWithoutExtension(app.ExePath);
@@ -549,6 +561,8 @@ public partial class GameLauncherViewModel : ObservableObject
         // launch state with no HWND to restore, leaving the opaque Agent shell on top.
         return IsSteamLaunch(app)
             ? ["steam", "steamwebhelper"]
+            : IsDiscordLaunch(app)
+                ? ["discord", "update"]
             : [processName];
     }
 
