@@ -49,7 +49,7 @@ public partial class GameLauncherWindow : Window
         // Keep Agent as the protected fullscreen background, but make that background unable
         // to steal activation while Steam/a game is in front. A click outside a windowed game
         // must therefore stay with the external application instead of hiding it behind Agent.
-        vm.AppLaunchRequested += _ => Dispatcher.Invoke(() => PlayerDockWindow.Instance?.ShowDock());
+        vm.AppLaunchRequested += _ => Dispatcher.Invoke(BeginExternalAppLaunch);
         vm.ExternalAppPreparationRequested += _ => Dispatcher.Invoke(EnterExternalAppMode);
         vm.AppLaunched += _ => Dispatcher.Invoke(() =>
         {
@@ -126,6 +126,22 @@ public partial class GameLauncherWindow : Window
         Topmost = false;
         SetNoActivate(true);
         _windowsShell.HideTaskbars();
+    }
+
+    private void BeginExternalAppLaunch()
+    {
+        // Drop the fullscreen Agent out of the topmost band *before* Steam tries
+        // to reveal its first window. Waiting until that window is detectable
+        // creates a circular dependency: Steam is visible behind Agent, while
+        // Agent waits for Steam before moving out of its way.
+        //
+        // The launcher remains rendered as the normal-window fallback, so this
+        // does not expose Explorer or leave the player with a blank desktop.
+        EnterExternalAppMode();
+        PlayerDockWindow.Instance?.ShowDock();
+        KeepExternalAppSurfaceStable();
+        if (!_externalAppUiTimer.IsEnabled)
+            _externalAppUiTimer.Start();
     }
 
     private void KeepExternalAppSurfaceStable()
