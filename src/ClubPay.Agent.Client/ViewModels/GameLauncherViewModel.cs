@@ -430,12 +430,19 @@ public partial class GameLauncherViewModel : ObservableObject
         // Keep a ClubPay-started application represented until its process tree has
         // actually ended; the player can still return to the launcher and explicitly
         // close it from the dock at any time.
+        var hasTopLevelWindow = false;
         foreach (var process in GetTrackedProcesses(app))
         {
             try
             {
                 process.Refresh();
-                if (!process.HasExited)
+                if (process.HasExited)
+                    continue;
+
+                if (NativeLauncher.TryFindTopLevelWindow(process.Id, out _))
+                    hasTopLevelWindow = true;
+
+                if (!IsDiscordLaunch(app))
                     return true;
             }
             catch
@@ -454,7 +461,10 @@ public partial class GameLauncherViewModel : ObservableObject
             }
         }
 
-        return false;
+        // Discord keeps its background process alive after its window is closed to
+        // the tray. The dock must represent windows the player can restore, not a
+        // tray-only process, so remove Discord only once it has no top-level window.
+        return IsDiscordLaunch(app) && hasTopLevelWindow;
     }
 
     private IEnumerable<Process> GetTrackedProcesses(LauncherApp app)
@@ -488,6 +498,41 @@ public partial class GameLauncherViewModel : ObservableObject
         RunningApps.Clear();
         RunningApp   = null;
         IsAppRunning = false;
+    }
+
+    /// <summary>
+    /// Returns true only when a player application was explicitly minimised. The
+    /// launcher uses this to cover Explorer immediately without reacting to Steam's
+    /// short-lived window recreation during bootstrap.
+    /// </summary>
+    internal bool HasMinimizedPlayerApplication()
+    {
+        if (_launchingApps.Count > 0)
+            return false;
+
+        foreach (var app in RunningApps)
+        {
+            foreach (var process in GetTrackedProcesses(app))
+            {
+                try
+                {
+                    process.Refresh();
+                    if (!process.HasExited && NativeLauncher.TryFindMinimizedTopLevelWindow(process.Id, out _))
+                        return true;
+                }
+                catch
+                {
+                    // Process can exit while Windows changes the foreground window.
+                }
+                finally
+                {
+                    if (!_runningProcesses.TryGetValue(app, out var tracked) || !ReferenceEquals(process, tracked))
+                        process.Dispose();
+                }
+            }
+        }
+
+        return false;
     }
 
     private void TrackApp(LauncherApp app, Process? process)
@@ -648,6 +693,9 @@ internal static class NativeLauncher
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool IsWindowVisible(nint hWnd);
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool IsIconic(nint hWnd);
+
     private delegate bool EnumWindowsCallback(nint hWnd, nint lParam);
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -659,16 +707,31 @@ internal static class NativeLauncher
     internal static bool IsVisibleWindow(nint hWnd) =>
         hWnd != nint.Zero && IsWindow(hWnd) && IsWindowVisible(hWnd);
 
+    internal static bool TryFindTopLevelWindow(int processId, out nint windowHandle) =>
+        TryFindTopLevelWindow(processId, requireMinimized: null, out windowHandle);
+
+    internal static bool TryFindMinimizedTopLevelWindow(int processId, out nint windowHandle) =>
+        TryFindTopLevelWindow(processId, requireMinimized: true, out windowHandle);
+
     internal static bool TryFindVisibleTopLevelWindow(int processId, out nint windowHandle)
+        => TryFindTopLevelWindow(processId, requireMinimized: null, out windowHandle);
+
+    private static bool TryFindTopLevelWindow(int processId, bool? requireMinimized, out nint windowHandle)
     {
         nint found = nint.Zero;
         EnumWindows((candidate, _) =>
         {
-            if (!IsVisibleWindow(candidate))
+            if (!IsWindow(candidate))
                 return true;
 
             GetWindowThreadProcessIdWithProcessId(candidate, out var ownerProcessId);
             if (ownerProcessId != (uint)processId)
+                return true;
+
+            if (requireMinimized is true && !IsIconic(candidate))
+                return true;
+
+            if (requireMinimized is null && !IsWindowVisible(candidate))
                 return true;
 
             found = candidate;

@@ -149,6 +149,16 @@ public partial class GameLauncherWindow : Window
         if (!_externalAppMode)
             return;
 
+        // A minimised player application leaves Explorer as the foreground window
+        // on a normal Windows shell. Restore ClubPay immediately, while keeping the
+        // application's dock entry available for a one-click return.
+        if (((GameLauncherViewModel)DataContext).HasMinimizedPlayerApplication())
+        {
+            ShowLauncherSurface();
+            PlayerDockWindow.Instance?.ShowDock();
+            return;
+        }
+
         // Do not call Activate/Focus here: this is deliberately a non-activating
         // z-order correction so a player can type in Steam or a game uninterrupted.
         _windowsShell.HideTaskbars();
