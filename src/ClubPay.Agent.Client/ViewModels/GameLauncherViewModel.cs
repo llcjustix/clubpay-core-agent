@@ -24,6 +24,10 @@ public partial class GameLauncherViewModel : ObservableObject
     [ObservableProperty] private string?      _launchError;
 
     public event Action?             ReturnRequested;   // show launcher window
+    // Raised as soon as the player clicks a tile.  The dock reflects that action
+    // immediately; it must not wait for a slow launcher such as Steam to create
+    // its first top-level window.
+    public event Action<LauncherApp> AppLaunchRequested = delegate { };
     // Raised after the launcher has dropped behind an external app, but before the
     // foreground hand-off.  The WPF launcher must not remain topmost while Windows
     // is restoring a Steam/game window.
@@ -34,6 +38,7 @@ public partial class GameLauncherViewModel : ObservableObject
 
     private readonly Dictionary<LauncherApp, Process?> _runningProcesses = [];
     private readonly HashSet<LauncherApp> _lifetimeMonitors = [];
+    private readonly HashSet<LauncherApp> _launchingApps = [];
     private readonly ILogger<GameLauncherViewModel> _logger;
     private readonly IConfiguration _config;
     private readonly SteamGameDiscoveryService _steamGames;
@@ -161,6 +166,12 @@ public partial class GameLauncherViewModel : ObservableObject
         // button: restore the existing application instead of launching a duplicate.
         if (RunningApps.Contains(app))
         {
+            // The first click already started this app. Do not turn a slow Steam
+            // bootstrap into a second launch (or remove its dock entry); its
+            // background waiter will foreground the real window as soon as it exists.
+            if (_launchingApps.Contains(app))
+                return;
+
             if (await FocusRunningAppAsync(app))
                 return;
 
@@ -191,6 +202,8 @@ public partial class GameLauncherViewModel : ObservableObject
         {
             var process = Process.Start(psi);
             TrackApp(app, process);
+            _launchingApps.Add(app);
+            AppLaunchRequested(app);
         }
         catch (Exception ex)
         {
@@ -225,7 +238,7 @@ public partial class GameLauncherViewModel : ObservableObject
         // Steam is noticeably slower on the pilot VM, especially on its first run.
         // Keep the launcher visible during this wait rather than exposing a blank
         // kiosk background just because Steam has started its process tree.
-        for (var attempt = 0; attempt < 80; attempt++)
+        for (var attempt = 0; attempt < WindowStartupWaitAttempts(target); attempt++)
         {
             if (TryFocusRunningApp(target))
             {
@@ -315,7 +328,7 @@ public partial class GameLauncherViewModel : ObservableObject
                     continue;
 
                 process.Refresh();
-                if (process.HasExited || !NativeLauncher.IsVisibleWindow(process.MainWindowHandle))
+                if (process.HasExited || !NativeLauncher.TryFindVisibleTopLevelWindow(process.Id, out var windowHandle))
                     continue;
 
                 // Process.Start may return a short-lived bootstrapper. Track the
@@ -327,7 +340,7 @@ public partial class GameLauncherViewModel : ObservableObject
                 // requesting foreground. Doing this afterwards lets the WPF
                 // launcher win the z-order race on slower Steam startups.
                 ExternalAppPreparationRequested(app);
-                if (!NativeLauncher.RestoreAndForeground(process.MainWindowHandle))
+                if (!NativeLauncher.RestoreAndForeground(windowHandle))
                     continue;
                 AppLaunched(app);
                 return true;
@@ -343,23 +356,30 @@ public partial class GameLauncherViewModel : ObservableObject
 
     private async Task PromoteAppWhenReadyAsync(LauncherApp app)
     {
-        // Do not hide the launcher until the player application actually owns a
-        // visible window. This is important for Steam, whose bootstrap process is
-        // often alive well before the desktop client is ready.
-        if (await FocusRunningAppAsync(app))
-            return;
-
-        // No visible window appeared during the startup grace period. Keep the
-        // launcher on screen and remove the stale taskbar item instead of leaving
-        // the player with a dock entry that cannot be opened.
-        if (RunningApps.Contains(app))
+        try
         {
-            UntrackApp(app);
-            LaunchError = _localizer.Format("LaunchFailed", app.Name);
-            // A failed foreground hand-off must leave the usable launcher on screen.
-            // Without this the kiosk window is hidden for the active session and the
-            // player sees only the desktop after a slow/failed Steam startup.
-            ReturnRequested?.Invoke();
+            // Do not hide the launcher until the player application actually owns a
+            // visible window. This is important for Steam, whose bootstrap process is
+            // often alive well before the desktop client is ready.
+            if (await FocusRunningAppAsync(app))
+                return;
+
+            // No visible window appeared during the startup grace period. Keep the
+            // launcher on screen and remove the stale taskbar item instead of leaving
+            // the player with a dock entry that cannot be opened.
+            if (RunningApps.Contains(app))
+            {
+                UntrackApp(app);
+                LaunchError = _localizer.Format("LaunchFailed", app.Name);
+                // A failed foreground hand-off must leave the usable launcher on screen.
+                // Without this the kiosk window is hidden for the active session and the
+                // player sees only the desktop after a slow/failed Steam startup.
+                ReturnRequested?.Invoke();
+            }
+        }
+        finally
+        {
+            _launchingApps.Remove(app);
         }
     }
 
@@ -405,7 +425,7 @@ public partial class GameLauncherViewModel : ObservableObject
             // A player-facing app is open only while its window is visible. Steam
             // commonly keeps steam.exe alive in the tray after the player closes its
             // window; keeping that stale process in the dock is misleading.
-            return !process.HasExited && NativeLauncher.IsVisibleWindow(process.MainWindowHandle);
+            return !process.HasExited && NativeLauncher.TryFindVisibleTopLevelWindow(process.Id, out _);
         }
         catch
         {
@@ -440,6 +460,7 @@ public partial class GameLauncherViewModel : ObservableObject
 
         _runningProcesses.Clear();
         _lifetimeMonitors.Clear();
+        _launchingApps.Clear();
         RunningApps.Clear();
         RunningApp   = null;
         IsAppRunning = false;
@@ -459,6 +480,7 @@ public partial class GameLauncherViewModel : ObservableObject
     {
         _runningProcesses.Remove(app);
         _lifetimeMonitors.Remove(app);
+        _launchingApps.Remove(app);
         RunningApps.Remove(app);
         RunningApp = RunningApps.LastOrDefault();
         IsAppRunning = RunningApps.Count > 0;
@@ -530,6 +552,12 @@ public partial class GameLauncherViewModel : ObservableObject
             : [processName];
     }
 
+    internal static int WindowStartupWaitAttempts(LauncherApp app) =>
+        // A cold Steam launch on a club VM can legitimately exceed 20 seconds.
+        // The app is already visible in ClubPay's dock during this period, so wait
+        // long enough for its actual window rather than forcing a misleading retry.
+        IsSteamLaunch(app) ? 240 : 80;
+
     private static string GetSteamAppId(LauncherApp app) =>
         app.Args["-applaunch ".Length..].Trim();
 
@@ -589,8 +617,36 @@ internal static class NativeLauncher
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool IsWindowVisible(nint hWnd);
 
+    private delegate bool EnumWindowsCallback(nint hWnd, nint lParam);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsCallback callback, nint lParam);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowThreadProcessId")]
+    private static extern uint GetWindowThreadProcessIdWithProcessId(nint hWnd, out uint processId);
+
     internal static bool IsVisibleWindow(nint hWnd) =>
         hWnd != nint.Zero && IsWindow(hWnd) && IsWindowVisible(hWnd);
+
+    internal static bool TryFindVisibleTopLevelWindow(int processId, out nint windowHandle)
+    {
+        nint found = nint.Zero;
+        EnumWindows((candidate, _) =>
+        {
+            if (!IsVisibleWindow(candidate))
+                return true;
+
+            GetWindowThreadProcessIdWithProcessId(candidate, out var ownerProcessId);
+            if (ownerProcessId != (uint)processId)
+                return true;
+
+            found = candidate;
+            return false;
+        }, nint.Zero);
+
+        windowHandle = found;
+        return found != nint.Zero;
+    }
 
     public static bool RestoreAndForeground(nint hWnd)
     {

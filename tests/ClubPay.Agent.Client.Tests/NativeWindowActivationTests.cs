@@ -35,4 +35,14 @@ public sealed class NativeWindowActivationTests
 
         Assert.Equal(["steam", "steamwebhelper"], names);
     }
+
+    [Fact]
+    public void SteamLaunch_WaitsLongerForItsFirstVisibleWindow()
+    {
+        var steam = new ClubPay.Agent.Core.Models.LauncherApp("Steam", @"C:\Program Files (x86)\Steam\Steam.exe");
+        var other = new ClubPay.Agent.Core.Models.LauncherApp("Other", @"C:\Games\Other.exe");
+
+        Assert.Equal(240, GameLauncherViewModel.WindowStartupWaitAttempts(steam));
+        Assert.Equal(80, GameLauncherViewModel.WindowStartupWaitAttempts(other));
+    }
 }
