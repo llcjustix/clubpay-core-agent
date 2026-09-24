@@ -1,5 +1,6 @@
 using ClubPay.Agent.Core.Models;
 using Microsoft.Extensions.Configuration;
+using System.IO;
 
 namespace ClubPay.Agent.Client.Services;
 

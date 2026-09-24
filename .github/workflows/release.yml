@@ -26,6 +26,7 @@ jobs:
       - name: Publish Windows applications
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $version = '${{ steps.version.outputs.version }}'
           dotnet publish src/ClubPay.Agent.Client/ClubPay.Agent.Client.csproj --configuration Release --runtime win-x64 --self-contained true "-p:Version=$version" --output dist/ClubPay-Agent
           dotnet publish src/ClubPay.Agent.Admin/ClubPay.Agent.Admin.csproj --configuration Release --runtime win-x64 --self-contained true "-p:Version=$version" --output dist/ClubPay-Manager
