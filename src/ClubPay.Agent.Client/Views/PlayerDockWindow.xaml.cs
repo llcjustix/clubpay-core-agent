@@ -3,7 +3,9 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using System.Runtime.InteropServices;
+using ClubPay.Agent.Client.Services;
 using ClubPay.Agent.Client.ViewModels;
 
 namespace ClubPay.Agent.Client.Views;
@@ -17,13 +19,25 @@ public partial class PlayerDockWindow : Window
     private const uint SwpShowWindow = 0x0040;
     public static PlayerDockWindow? Instance { get; private set; }
     private GameLauncherViewModel Vm => (GameLauncherViewModel)DataContext;
+    private readonly IWindowsShellService _windowsShell;
+    private readonly DispatcherTimer _stabilityTimer;
 
-    public PlayerDockWindow(GameLauncherViewModel vm)
+    public PlayerDockWindow(GameLauncherViewModel vm, IWindowsShellService windowsShell)
     {
         Instance = this;
         DataContext = vm;
+        _windowsShell = windowsShell;
         InitializeComponent();
+        // The dock is a mouse-interactive overlay, never a foreground window.
+        // Letting it activate briefly on a click was enough for Explorer to reveal
+        // the native taskbar before the opened app got the foreground back.
+        ShowActivated = false;
         Deactivated += (_, _) => Dispatcher.BeginInvoke(KeepAbovePlayerWindows);
+        _stabilityTimer = new DispatcherTimer(DispatcherPriority.Send)
+        {
+            Interval = TimeSpan.FromMilliseconds(100)
+        };
+        _stabilityTimer.Tick += (_, _) => KeepAbovePlayerWindows();
     }
 
     internal void ShowDock()
@@ -36,6 +50,13 @@ public partial class PlayerDockWindow : Window
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e) => PositionAtBottom();
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        NativeWindowActivation.SetNoActivate(new WindowInteropHelper(this).EnsureHandle(), enabled: true);
+        _stabilityTimer.Start();
+    }
 
     internal void RefreshPosition()
     {
@@ -50,6 +71,11 @@ public partial class PlayerDockWindow : Window
     {
         if (!IsVisible)
             return;
+
+        // Shell_TrayWnd is owned by Explorer and may reassert itself whenever an
+        // external application changes foreground. Hide it synchronously before
+        // reinforcing our own overlay so no native dock leaks through a frame.
+        _windowsShell.HideTaskbars();
 
         // WPF's Topmost property is not enough after Steam creates/reparents its
         // window or Explorer recreates the taskbar over RDP. Reapply HWND_TOPMOST
