@@ -423,21 +423,38 @@ public partial class GameLauncherViewModel : ObservableObject
 
     private bool IsTrackedAppStillRunning(LauncherApp app)
     {
-        if (!_runningProcesses.TryGetValue(app, out var process) || process is null)
-            return false;
+        // Steam replaces/reparents its visible window during bootstrap, sign-in and
+        // updates. A missing HWND for one monitor tick is therefore not evidence
+        // that the player closed it. The previous window-based check removed the
+        // dock item during that transition and brought the launcher back over Steam.
+        // Keep a ClubPay-started application represented until its process tree has
+        // actually ended; the player can still return to the launcher and explicitly
+        // close it from the dock at any time.
+        foreach (var process in GetTrackedProcesses(app))
+        {
+            try
+            {
+                process.Refresh();
+                if (!process.HasExited)
+                    return true;
+            }
+            catch
+            {
+                // A process can exit between enumeration and Refresh. Check the
+                // remaining related processes before declaring the app closed.
+            }
+            finally
+            {
+                // GetTrackedProcesses includes the persistent tracked Process as
+                // well as temporary Process.GetProcessesByName instances. Do not
+                // dispose the persistent instance because it is reused for launch
+                // and focus; temporary handles are safe to release.
+                if (!_runningProcesses.TryGetValue(app, out var tracked) || !ReferenceEquals(process, tracked))
+                    process.Dispose();
+            }
+        }
 
-        try
-        {
-            process.Refresh();
-            // A player-facing app is open only while its window is visible. Steam
-            // commonly keeps steam.exe alive in the tray after the player closes its
-            // window; keeping that stale process in the dock is misleading.
-            return !process.HasExited && NativeLauncher.TryFindVisibleTopLevelWindow(process.Id, out _);
-        }
-        catch
-        {
-            return false;
-        }
+        return false;
     }
 
     private IEnumerable<Process> GetTrackedProcesses(LauncherApp app)
