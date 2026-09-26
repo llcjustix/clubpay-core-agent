@@ -17,13 +17,14 @@ run a local Controller or expose an inbound port.
 
 ## Shared diskless Windows image
 
-For a diskless club, install the executable once in the master Windows image. Do **not** bake one
-fixed `ExternalPcId` or one shared state file into that image: all clients would otherwise connect
-as the same ClubPay PC.
+For a diskless club, install the executable once in the master Windows image. Do **not** bake a
+fixed `ExternalPcId`, a real `AgentToken`, or a shared state file into that image. The token is a
+club credential and must be placed in a private per-station writable layer before Agent starts.
 
 Give every Windows client a unique computer name of at most 15 characters, for example `CP001`,
 `CP002`. In ClubPay admin create the matching PCs with external IDs `cp001`, `cp002`. In the
-shared `appsettings.Local.json` use the supported placeholders:
+shared image's `appsettings.json` use only non-secret placeholders; do not include a shared
+`appsettings.Local.json`:
 
 ```json
 {
@@ -32,15 +33,19 @@ shared `appsettings.Local.json` use the supported placeholders:
     "DataDirectory": "C:\\ProgramData\\ClubPay\\Agent\\state\\{MACHINE_NAME_LOWER}"
   },
   "Controller": {
-    "ExternalPcId": "{MACHINE_NAME_LOWER}",
-    "AgentToken": "PUT_CORE_TOKEN_HERE"
+    "ExternalPcId": "{MACHINE_NAME_LOWER}"
   }
 }
 ```
 
 The Agent expands `{MACHINE_NAME}`, `{MACHINE_NAME_LOWER}` and `{MACHINE_NAME_UPPER}` when it
-starts. The diskless system must keep these per-client state folders separate and writable; they
-contain active-session recovery and undelivered event data.
+starts. After the per-station layer is mounted, provision `Controller:AgentToken` in that station's
+private `appsettings.Local.json` and ensure Agent starts only after this step. The base
+`appsettings.json` may retain the nonfunctional `REPLACE_WITH_CORE_TOKEN` placeholder. Reapply the
+token on every boot if the layer is reset. The diskless system must keep the per-client state folders
+separate, writable and persistent across reboot; they contain active-session recovery and
+undelivered event data. Keep Agent update metadata persistent or roll updates into a new signed
+image. This provisioning sequence has not yet been validated with ClubPay Boot hardware.
 
 ## Automatic startup on a club PC
 
