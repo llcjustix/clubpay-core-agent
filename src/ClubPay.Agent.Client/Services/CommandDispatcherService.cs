@@ -107,7 +107,7 @@ public sealed class CommandDispatcherService(
 
     private CommandResultEnvelope HandleGetStatus(CommandEnvelope command)
     {
-        var result = coordinator.GetStatus();
+        var result = coordinator.GetStatus() with { AgentCritical = updater.IsCritical };
         return Ok(command, result);
     }
 

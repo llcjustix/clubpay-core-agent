@@ -17,7 +17,8 @@ public sealed record GetStatusResult(
     PcState PcState,
     SessionState? SessionState,
     string? CoreSessionId,
-    int? RemainingSeconds);
+    int? RemainingSeconds,
+    bool AgentCritical = false);
 
 /// <summary>Ack-only result for lock/unlock/wake/sleep/set_repair.</summary>
 public sealed record EmptyResult;

@@ -7,6 +7,7 @@ namespace ClubPay.Agent.Client.Services;
 
 public interface IAgentUpdateService
 {
+    bool IsCritical { get; }
     AgentUpdateResult Schedule(AgentUpdatePayload payload);
 }
 
@@ -21,6 +22,10 @@ public sealed class AgentUpdateService : IAgentUpdateService
 {
     private static readonly object Gate = new();
     private static string? _scheduledVersion;
+
+    // Once a detached updater is launched, only a new Agent process can
+    // confirm completion. Even a failed helper keeps CPB fail-closed.
+    public bool IsCritical { get { lock (Gate) return _scheduledVersion is not null; } }
 
     public AgentUpdateResult Schedule(AgentUpdatePayload payload)
     {
